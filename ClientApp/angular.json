@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "m3u-parser": {
+    "m3u-split": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:class": {
@@ -41,7 +41,7 @@
         "build": {
           "builder": "@angular-devkit/build-angular:browser",
           "options": {
-            "outputPath": "dist/m3u-parser",
+            "outputPath": "dist/m3u-split",
             "index": "src/index.html",
             "main": "src/main.ts",
             "polyfills": "src/polyfills.ts",
@@ -90,18 +90,18 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "browserTarget": "m3u-parser:build"
+            "browserTarget": "m3u-split:build"
           },
           "configurations": {
             "production": {
-              "browserTarget": "m3u-parser:build:production"
+              "browserTarget": "m3u-split:build:production"
             }
           }
         },
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "m3u-parser:build"
+            "browserTarget": "m3u-split:build"
           }
         },
         "test": {
@@ -139,16 +139,16 @@
           "builder": "@angular-devkit/build-angular:protractor",
           "options": {
             "protractorConfig": "e2e/protractor.conf.js",
-            "devServerTarget": "m3u-parser:serve"
+            "devServerTarget": "m3u-split:serve"
           },
           "configurations": {
             "production": {
-              "devServerTarget": "m3u-parser:serve:production"
+              "devServerTarget": "m3u-split:serve:production"
             }
           }
         }
       }
     }
   },
-  "defaultProject": "m3u-parser"
+  "defaultProject": "m3u-split"
 }

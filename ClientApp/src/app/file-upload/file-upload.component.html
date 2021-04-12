@@ -19,7 +19,15 @@
   </button>
 </div>
 
-<div class="progress">
+<button
+mat-mini-fab
+color="primary"
+class="upload-btn"
+(click)="saveFile()"
+>
+<mat-icon>attach_file</mat-icon>
+</button>
+<!-- <div class="progress">
   <mat-progress-bar
     class="progress-bar"
     mode="determinate"
@@ -34,4 +42,4 @@
     *ngIf="uploadProgress"
     >delete_forever</mat-icon
   >
-</div>
+</div> -->

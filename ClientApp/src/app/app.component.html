@@ -20,22 +20,48 @@
     </a> -->
 </div>
 <mat-toolbar color="primary">
-  <span>M3U Extractor</span>
+  <span>M3U Split</span>
   <span class="example-spacer"></span>
 </mat-toolbar>
 
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>File Upload</mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <file-upload
+      requiredFileType="audio/x-mpegurl"
+      (newItemEvent)="addItem($event)"
+    ></file-upload>
+  </mat-card-content>
+  <mat-card-actions> </mat-card-actions>
+</mat-card>
+
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Channel Picker</mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <mat-selection-list color="primary" #shoes>
+      <mat-list-option *ngFor="let channel of channels">
+        {{ channel.name }}
+      </mat-list-option>
+    </mat-selection-list>
+  </mat-card-content>
+  <mat-card-actions> </mat-card-actions>
+</mat-card>
+
+<!-- <mat-grid-list cols="2" rowHeight="2:1">
+  <mat-grid-tile>1</mat-grid-tile>
+  <mat-grid-tile>2</mat-grid-tile>
+  <mat-grid-tile>3</mat-grid-tile>
+  <mat-grid-tile>4</mat-grid-tile>
+</mat-grid-list> -->
+
 <div class="content" role="main">
-  <file-upload requiredFileType="audio/x-mpegurl"></file-upload>
-
-  <mat-selection-list color="primary" #shoes>
-    <mat-list-option *ngFor="let shoe of typesOfShoes">
-      {{shoe}}
-    </mat-list-option>
-  </mat-selection-list>
-
-  <p>
+  <!-- <p>
     Options selected: {{shoes.selectedOptions.selected.length}}
-  </p>
+  </p> -->
 
   <!-- Highlight Card -->
   <!-- <div class="card highlight-card card-small">
