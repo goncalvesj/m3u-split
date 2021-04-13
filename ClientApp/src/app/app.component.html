@@ -40,27 +40,24 @@
   <mat-card-actions> </mat-card-actions>
 </mat-card>
 
-<mat-card>
-  <mat-card-header>
-    <mat-card-title>File Download</mat-card-title>
-  </mat-card-header>
-  <mat-card-content>
-    <p>Options selected: {{ shoes.selectedOptions.selected.length }}</p>
-    <br>
-    <button mat-mini-fab color="primary" class="upload-btn" disabled="{{ shoes.selectedOptions.selected.length === 0 }}">
-      <mat-icon>download_for_offline</mat-icon>
-    </button>
-  </mat-card-content>
-  <mat-card-actions> </mat-card-actions>
-</mat-card>
+<file-download [channelsList]="channelsList"></file-download>
+
+<div>
+  <p>
+    Options selected: {{ channelsSelected.selectedOptions }}
+  </p>
+</div>
 
 <mat-card>
   <mat-card-header>
     <mat-card-title>Channel Picker</mat-card-title>
   </mat-card-header>
   <mat-card-content>
-    <mat-selection-list color="primary" #shoes>
-      <mat-list-option *ngFor="let channel of channels">
+    <mat-selection-list color="primary" #channelsSelected>
+      <mat-list-option
+        *ngFor="let channel of channelsList?.channels"
+        [value]="channel.index"
+      >
         {{ channel.name }}
       </mat-list-option>
     </mat-selection-list>

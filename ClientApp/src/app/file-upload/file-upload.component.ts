@@ -1,6 +1,5 @@
 import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
-import { ChannelItem } from '../Models';
-import { saveAs } from 'file-saver';
+import { ChannelItem, ChannelsList } from '../Models';
 
 @Component({
   selector: 'file-upload',
@@ -11,7 +10,7 @@ export class FileUploadComponent implements OnInit {
   @Input()
   requiredFileType: string | undefined;
 
-  @Output() newItemEvent = new EventEmitter<ChannelItem[]>();
+  @Output() newItemEvent = new EventEmitter<ChannelsList>();
 
   fileName = '';
   fileContent = '';
@@ -22,7 +21,7 @@ export class FileUploadComponent implements OnInit {
 
   ngOnInit(): void {}
 
-  populateList(value: ChannelItem[]): void {
+  populateList(value: ChannelsList): void {
     this.newItemEvent.emit(value);
   }
 
@@ -54,32 +53,13 @@ export class FileUploadComponent implements OnInit {
         });
       }
 
-      this.populateList(this.channels);
+      this.populateList({
+        channels: this.channels,
+        channelsArray: this.fileContentArray,
+      });
     };
 
     myReader.readAsText(inputValue);
-  }
-
-  saveFile(): void {
-    const channelsToExtract = [2, 216];
-    let outputLines: string[] = [];
-
-    for (const channel of channelsToExtract) {
-      const nextIndex = this.channels.find((x) => x.index > channel);
-      console.log(channel);
-      console.log(nextIndex);
-
-      const output = this.fileContentArray.slice(
-        channel - 1,
-        (nextIndex?.index as number) - 1
-      );
-      outputLines = outputLines.concat(output);
-    }
-
-    const blob = new Blob([outputLines.join('\n')], {
-      type: 'audio/x-mpegurl',
-    });
-    saveAs(blob, 'channels.m3u');
   }
 
   onFileSelected(event: any): void {

@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
-import { ChannelItem } from './Models';
+import { MatListOption } from '@angular/material/list';
+import { ChannelsList } from './Models';
 
 @Component({
   selector: 'app-root',
@@ -9,15 +10,14 @@ import { ChannelItem } from './Models';
 export class AppComponent {
   title = 'm3u-parser';
 
-  channels: ChannelItem[] = [];
+  channelsList: ChannelsList | undefined;
   constructor() {}
 
-  addItem(newItem: ChannelItem[]): void {
-    this.channels = newItem;
+  addItem(newItem: ChannelsList): void {
+    this.channelsList = newItem;
+  }
 
-    // this.channels.push(newItem.name);
-    // newItem.channels.forEach((element: any) => {
-    //   this.typesOfShoes.push(element.name);
-    // });
+  selectionChange(option: MatListOption): void {
+    console.log(option.value);
   }
 }

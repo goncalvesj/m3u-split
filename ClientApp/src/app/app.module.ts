@@ -13,9 +13,10 @@ import { MatListModule } from '@angular/material/list';
 import { MatGridListModule } from '@angular/material/grid-list';
 import { MatCardModule } from '@angular/material/card';
 import { FileUploadComponent } from './file-upload/file-upload.component';
+import { FileDownloadComponent } from './file-download/file-download.component';
 
 @NgModule({
-  declarations: [AppComponent, FileUploadComponent],
+  declarations: [AppComponent, FileUploadComponent, FileDownloadComponent],
   imports: [
     BrowserModule,
     HttpClientModule,
