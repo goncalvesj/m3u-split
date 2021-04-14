@@ -11,6 +11,7 @@ export class AppComponent {
   title = 'm3u-parser';
 
   channelsList: ChannelsList | undefined;
+  selectedOptions: number[] = [];
   constructor() {}
 
   addItem(newItem: ChannelsList): void {

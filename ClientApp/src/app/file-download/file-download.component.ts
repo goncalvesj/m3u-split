@@ -10,17 +10,20 @@ import { saveAs } from 'file-saver';
 export class FileDownloadComponent implements OnInit {
   @Input()
   channelsList: ChannelsList | undefined;
+  @Input()
+  selectedOptions: number[] = [];
 
   constructor() {}
 
   ngOnInit(): void {}
 
   saveFile(): void {
-    const channelsToExtract = [2, 216];
     let outputLines: string[] = [];
 
-    for (const channel of channelsToExtract) {
-      const nextIndex = this.channelsList?.channels.find((x) => x.index > channel);
+    for (const channel of this.selectedOptions) {
+      const nextIndex = this.channelsList?.channels.find(
+        (x) => x.index > channel
+      );
       console.log(channel);
       console.log(nextIndex);
 
