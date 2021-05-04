@@ -8,7 +8,7 @@ image:
   repository: docker.pkg.github.com/goncalvesj/m3u-split/m3u-split
   pullPolicy: IfNotPresent
 
-imagePullSecrets: []
+imagePullSecrets: [pullsecret]
 nameOverride: ""
 fullnameOverride: ""
 
