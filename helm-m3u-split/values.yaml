@@ -5,11 +5,11 @@
 replicaCount: 1
 
 image:
-  repository: goncalvesj/m3u-split
+  repository: ghcr.io/goncalvesj/m3u-split
   pullPolicy: IfNotPresent
 
 imagePullSecrets:
-  - name: pullsecret
+  # - name: pullsecret
 nameOverride: ""
 fullnameOverride: ""
 
