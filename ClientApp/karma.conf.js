@@ -25,7 +25,7 @@ module.exports = function (config) {
       suppressAll: true // removes the duplicated traces
     },
     coverageReporter: {
-      dir: require('path').join(__dirname, './coverage/m3u-parser'),
+      dir: require('path').join(__dirname, './coverage/m3u-split'),
       subdir: '.',
       reporters: [
         { type: 'html' },

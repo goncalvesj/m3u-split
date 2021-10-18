@@ -1,7 +1,7 @@
 FROM node:alpine as build-step
 WORKDIR /app
 COPY . .
-RUN npm ci && npm run build:prod
+RUN npm ci && npm run build
 
 FROM nginx:alpine
 COPY --from=build-step /app/dist/m3u-split /usr/share/nginx/html
