@@ -6,12 +6,12 @@ import { AppComponent } from './app.component';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 
 import { MatIconModule } from '@angular/material/icon';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatButtonModule } from '@angular/material/button';
+import { MatLegacyProgressBarModule as MatProgressBarModule } from '@angular/material/legacy-progress-bar';
+import { MatLegacyButtonModule as MatButtonModule } from '@angular/material/legacy-button';
 import { MatToolbarModule } from '@angular/material/toolbar';
-import { MatListModule } from '@angular/material/list';
+import { MatLegacyListModule as MatListModule } from '@angular/material/legacy-list';
 import { MatGridListModule } from '@angular/material/grid-list';
-import { MatCardModule } from '@angular/material/card';
+import { MatLegacyCardModule as MatCardModule } from '@angular/material/legacy-card';
 import { FileUploadComponent } from './file-upload/file-upload.component';
 import { FileDownloadComponent } from './file-download/file-download.component';
 

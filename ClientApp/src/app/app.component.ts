@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { MatListOption } from '@angular/material/list';
+import { MatLegacyListOption as MatListOption } from '@angular/material/legacy-list';
 import { ChannelsList } from './Models';
 
 @Component({
