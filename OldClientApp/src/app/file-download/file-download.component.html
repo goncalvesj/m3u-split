@@ -1,0 +1,12 @@
+<button
+  mat-mini-fab
+  color="primary"
+  class="upload-btn"
+  disabled="{{ selectedOptions.length === 0 }}"
+  (click)="saveFile()"
+>
+  <mat-icon>download_for_offline</mat-icon>
+</button>
+<br />
+<br />
+<p>Options selected: {{ selectedOptions.length }}</p>
