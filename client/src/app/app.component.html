@@ -1,0 +1,53 @@
+<mat-toolbar color="primary">
+  <span>M3U Split</span>
+  <span class="spacer"></span>
+  <span>App to retrieve from your m3u file only the categories you want</span>
+</mat-toolbar>
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Upload</mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <div>
+      <input
+        type="file"
+        accept="audio/x-mpegurl"
+        (change)="upload($event)"
+      />
+    </div>
+    <div>
+      <span *ngIf="isUploading">Uploading...</span>
+      <span >{{ message }}</span>
+    </div>
+  </mat-card-content>
+</mat-card>
+
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Categories</mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <mat-selection-list color="primary" #channels [(ngModel)]="selectedOptions">
+      <mat-list-option
+        *ngFor="let category of categories | keyvalue"
+        [value]="category.value"
+      >
+        {{ category.key }}
+      </mat-list-option>
+    </mat-selection-list>
+    <!-- <p>
+    Options selected: {{selectedOptions | json}}
+  </p> -->
+  </mat-card-content>
+</mat-card>
+
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Download</mat-card-title>
+  </mat-card-header>
+  <mat-card-content>
+    <button mat-raised-button color="primary" (click)="onDownloadApi()">
+      Download m3u File
+    </button>
+  </mat-card-content>
+</mat-card>
