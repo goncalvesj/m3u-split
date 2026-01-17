@@ -1,54 +1,48 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-#
-# Microsoft Security DevOps (MSDO) is a command line application which integrates static analysis tools into the development cycle.
-# MSDO installs, configures and runs the latest versions of static analysis tools
-# (including, but not limited to, SDL/security and compliance tools).
-#
-# The Microsoft Security DevOps action is currently in beta and runs on the windows-latest queue,
-# as well as Windows self hosted agents. ubuntu-latest support coming soon.
-#
-# For more information about the action , check out https://github.com/microsoft/security-devops-action
-#
-# Please note this workflow do not integrate your GitHub Org with Microsoft Defender For DevOps. You have to create an integration
-# and provide permission before this can report data back to azure.
-# Read the official documentation here : https://learn.microsoft.com/en-us/azure/defender-for-cloud/quickstart-onboard-github
-
-name: "Microsoft Defender For Devops"
-
+name: MSDO
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
-  workflow_dispatch:
+    branches:
+      - master
 
 jobs:
-  security:
-    # currently only windows latest is supported
+  sample:
+    name: Microsoft Security DevOps
+
+    # Windows and Linux agents are supported
     runs-on: windows-latest
-    #continue-on-error: true
-    #strategy:
-    #  fail-fast: true
+
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+      # Write access for security-events is only required for customers looking for MSDO results to appear in the codeQL security alerts tab on GitHub (Requires GHAS)
+      security-events: write
 
     steps:
+
+      # Checkout your code repository to scan
     - uses: actions/checkout@v3
-    - uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: |
-          5.0.x
-          6.0.x
-          
+
+      # Run analyzers
     - name: Run Microsoft Security DevOps
-      uses: microsoft/security-devops-action@v1.6.0
-      #continue-on-error: true
+      uses: microsoft/security-devops-action@latest
       id: msdo
-      #with:
-      #  categories: 'IaC'        
-      
-    - name: Upload results to Security tab
-      uses: github/codeql-action/upload-sarif@v2
+    # with:
+      # config: string. Optional. A file path to an MSDO configuration file ('*.gdnconfig').
+      # policy: 'GitHub' | 'microsoft' | 'none'. Optional. The name of a well-known Microsoft policy. If no configuration file or list of tools is provided, the policy may instruct MSDO which tools to run. Default: GitHub.
+      # categories: string. Optional. A comma-separated list of analyzer categories to run. Values: 'code', 'artifacts', 'IaC', 'containers'. Example: 'IaC, containers'. Defaults to all.
+      # languages: string. Optional. A comma-separated list of languages to analyze. Example: 'javascript,typescript'. Defaults to all.
+      # tools: string. Optional. A comma-separated list of analyzer tools to run. Values: 'bandit', 'binskim', 'checkov', 'eslint', 'templateanalyzer', 'terrascan', 'trivy'.
+
+      #Upload alerts to the Security tab - required for MSDO results to appear in the codeQL security alerts tab on GitHub (Requires GHAS)
+    - name: Upload alerts to Security tab
+      uses: github/codeql-action/upload-sarif@v3
       with:
-        sarif_file: ${{ steps.msdo.outputs.sarifFile }}
+       sarif_file: ${{ steps.msdo.outputs.sarifFile }}
+
+      #Upload alerts file as a workflow artifact - required for MSDO results to appear in the codeQL security alerts tab on GitHub (Requires GHAS)
+    - name: Upload alerts file as a workflow artifact
+      uses: actions/upload-artifact@v3
+      with:  
+       name: alerts
+       path: ${{ steps.msdo.outputs.sarifFile }}

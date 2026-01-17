@@ -1,11 +1,10 @@
-using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
-namespace M3U.Split
-{
-    public class CategoriesDto
-    {
-        public string FileName { get; set; }
-        public bool GenerateLink { get; set; }
-        public List<Category> Categories { get; set; }
-    }
-}
+namespace api;
+
+public record CategoriesDto(string FileName, bool GenerateLink, List<Category> Categories);
+
+[JsonSerializable(typeof(CategoriesDto))]
+[JsonSerializable(typeof(UploadResponse))]
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+public partial class AppJsonContext : JsonSerializerContext;

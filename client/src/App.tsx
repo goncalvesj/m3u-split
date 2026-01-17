@@ -1,54 +1,40 @@
-import { useState, useRef, useMemo } from 'react'
-import type { Category } from './m3u-parser'
-import { extractCategories, filterByCategories, readFileAsText } from './m3u-parser'
+import { useState, useRef } from 'react'
+import { extractCategories, filterByCategories } from './m3u-parser'
 import './App.css'
 
 type ProcessingMode = 'client' | 'server'
-
-// Feature flag: set to true when backend API is ready
 const ENABLE_SERVER_MODE = false
 
 function App() {
   const [mode, setMode] = useState<ProcessingMode>('client')
-  const [categories, setCategories] = useState<Record<string, Category>>({})
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [categories, setCategories] = useState<string[]>([])
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [isProcessing, setIsProcessing] = useState(false)
   const [message, setMessage] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [search, setSearch] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [fileName, setFileName] = useState('')
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  // Client-side state
   const [fileContent, setFileContent] = useState('')
-
-  // Server-side state
   const [serverFileName, setServerFileName] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const processFile = async (file: File) => {
     setIsProcessing(true)
     setMessage('')
-    setSelectedCategories([])
-    setSearchQuery('')
+    setSelected(new Set())
+    setSearch('')
     setFileName(file.name)
 
     try {
       if (mode === 'client') {
-        const content = await readFileAsText(file)
+        const content = await file.text()
         setFileContent(content)
         setCategories(extractCategories(content))
       } else {
         const formData = new FormData()
         formData.append('file', file)
-        const res = await fetch('/api/upload', { method: 'POST', body: formData })
-        const data = await res.json()
-        const cats: Record<string, Category> = {}
-        if (data.categories) {
-          for (const [key, val] of Object.entries(data.categories)) {
-            cats[key] = typeof val === 'object' && val !== null ? (val as Category) : { name: key }
-          }
-        }
-        setCategories(cats)
+        const data = await (await fetch('/api/upload', { method: 'POST', body: formData })).json()
+        setCategories(data.categories ? Object.keys(data.categories) : [])
         setServerFileName(data.fileName || '')
       }
     } catch {
@@ -82,71 +68,53 @@ function App() {
 
   const handleDragLeave = () => setIsDragging(false)
 
-  const toggleCategory = (name: string) => {
-    setSelectedCategories(prev =>
-      prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
-    )
+  const toggle = (name: string) => {
+    const next = new Set(selected)
+    next.has(name) ? next.delete(name) : next.add(name)
+    setSelected(next)
   }
 
-  const categoryEntries = Object.entries(categories)
-  
-  const filteredCategories = useMemo(() => {
-    if (!searchQuery.trim()) return categoryEntries
-    const query = searchQuery.toLowerCase()
-    return categoryEntries.filter(([key]) => key.toLowerCase().includes(query))
-  }, [categoryEntries, searchQuery])
+  const query = search.toLowerCase()
+  const filtered = query ? categories.filter(c => c.toLowerCase().includes(query)) : categories
 
-  const selectAll = () => setSelectedCategories(filteredCategories.map(([key]) => key))
-  const selectNone = () => setSelectedCategories([])
+  const selectAll = () => setSelected(new Set(filtered))
+  const selectNone = () => setSelected(new Set())
 
   const handleDownload = async () => {
-    if (!selectedCategories.length) {
-      setMessage('Select at least one category')
-      return
-    }
+    if (!selected.size) return setMessage('Select at least one category')
     setMessage('')
 
     try {
-      let result: string
-      if (mode === 'client') {
-        const selected = selectedCategories.map(name => ({ name }))
-        result = filterByCategories(fileContent, selected)
-      } else {
-        const res = await fetch('/api/download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fileName: serverFileName,
-            categories: selectedCategories.map(name => ({ name })),
-          }),
-        })
-        result = await res.text()
-      }
+      const cats = [...selected]
+      const result = mode === 'client'
+        ? filterByCategories(fileContent, cats)
+        : await (await fetch('/api/download', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileName: serverFileName, categories: cats.map(name => ({ name })) }),
+          })).text()
 
-      const blob = new Blob([result], { type: 'audio/x-mpegurl' })
-      const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
+      a.href = URL.createObjectURL(new Blob([result], { type: 'audio/x-mpegurl' }))
       a.download = 'channels.m3u'
       a.click()
-      URL.revokeObjectURL(url)
     } catch {
       setMessage('Download failed')
     }
   }
 
   const reset = () => {
-    setCategories({})
-    setSelectedCategories([])
+    setCategories([])
+    setSelected(new Set())
     setFileName('')
     setFileContent('')
     setServerFileName('')
     setMessage('')
-    setSearchQuery('')
+    setSearch('')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const hasFile = categoryEntries.length > 0
+  const hasFile = categories.length > 0
 
   return (
     <div className="app">
@@ -165,12 +133,12 @@ function App() {
             <span className="step-label">Upload</span>
           </div>
           <div className="step-line" />
-          <div className={`step ${hasFile && !selectedCategories.length ? 'active' : selectedCategories.length ? 'done' : ''}`}>
-            <span className="step-num">{selectedCategories.length ? '✓' : '2'}</span>
+          <div className={`step ${hasFile && !selected.size ? 'active' : selected.size ? 'done' : ''}`}>
+            <span className="step-num">{selected.size ? '✓' : '2'}</span>
             <span className="step-label">Select</span>
           </div>
           <div className="step-line" />
-          <div className={`step ${selectedCategories.length ? 'active' : ''}`}>
+          <div className={`step ${selected.size ? 'active' : ''}`}>
             <span className="step-num">3</span>
             <span className="step-label">Download</span>
           </div>
@@ -250,7 +218,7 @@ function App() {
               <span className="file-icon">📄</span>
               <div className="file-details">
                 <span className="file-name">{fileName}</span>
-                <span className="file-meta">{categoryEntries.length} categories found</span>
+                <span className="file-meta">{categories.length} categories found</span>
               </div>
             </div>
           )}
@@ -263,7 +231,7 @@ function App() {
           <section className="card">
             <div className="card-header">
               <h2>Select Categories</h2>
-              <span className="badge">{selectedCategories.length} / {categoryEntries.length}</span>
+              <span className="badge">{selected.size} / {categories.length}</span>
             </div>
 
             <div className="category-toolbar">
@@ -272,11 +240,11 @@ function App() {
                 <input
                   type="text"
                   placeholder="Search categories..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
-                {searchQuery && (
-                  <button type="button" className="search-clear" onClick={() => setSearchQuery('')}>
+                {search && (
+                  <button type="button" className="search-clear" onClick={() => setSearch('')}>
                     ✕
                   </button>
                 )}
@@ -292,19 +260,19 @@ function App() {
             </div>
 
             <div className="categories">
-              {filteredCategories.length === 0 ? (
+              {!filtered.length ? (
                 <div className="empty-state">
-                  <p>No categories match "{searchQuery}"</p>
+                  <p>No categories match "{search}"</p>
                 </div>
               ) : (
-                filteredCategories.map(([key]) => (
-                  <label key={key} className={`category-item ${selectedCategories.includes(key) ? 'selected' : ''}`}>
+                filtered.map(cat => (
+                  <label key={cat} className={`category-item ${selected.has(cat) ? 'selected' : ''}`}>
                     <input
                       type="checkbox"
-                      checked={selectedCategories.includes(key)}
-                      onChange={() => toggleCategory(key)}
+                      checked={selected.has(cat)}
+                      onChange={() => toggle(cat)}
                     />
-                    <span className="category-name">{key}</span>
+                    <span className="category-name">{cat}</span>
                   </label>
                 ))
               )}
@@ -319,12 +287,12 @@ function App() {
               type="button"
               className="btn-primary"
               onClick={handleDownload}
-              disabled={!selectedCategories.length}
+              disabled={!selected.size}
             >
               <span>⬇️</span>
               Download M3U File
             </button>
-            {selectedCategories.length === 0 && (
+            {!selected.size && (
               <p className="hint">Select at least one category to download</p>
             )}
           </section>

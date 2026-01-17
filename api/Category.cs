@@ -1,7 +1,3 @@
-namespace M3U.Split
-{
-    public class Category
-    {
-        public string Name { get; set; }
-    }
-}
+namespace api;
+
+public record Category(string Name);
