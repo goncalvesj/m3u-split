@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - master
+    paths:
+      - 'client/**'
+      - 'api/**'
+      - '.github/workflows/azure-static-web-apps-purple-forest-061720b03.yml'
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
