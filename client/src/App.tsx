@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { extractCategories, filterByCategories } from './m3u-parser'
+import { forgetFavourites, loadFavourites, matchFavourites, saveFavourites } from './favourites'
 import './App.css'
 
 type ProcessingMode = 'client' | 'server'
@@ -9,6 +10,8 @@ function App() {
   const [mode, setMode] = useState<ProcessingMode>('client')
   const [categories, setCategories] = useState<string[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [favourites, setFavourites] = useState(loadFavourites)
+  const [favouritesMessage, setFavouritesMessage] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [message, setMessage] = useState('')
   const [search, setSearch] = useState('')
@@ -17,11 +20,13 @@ function App() {
   const [fileContent, setFileContent] = useState('')
   const [serverFileName, setServerFileName] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const favouritesHeadingRef = useRef<HTMLHeadingElement>(null)
 
   const processFile = async (file: File) => {
     setIsProcessing(true)
     setMessage('')
     setSelected(new Set())
+    setFavouritesMessage('')
     setSearch('')
     setFileName(file.name)
 
@@ -70,15 +75,67 @@ function App() {
 
   const toggle = (name: string) => {
     const next = new Set(selected)
-    next.has(name) ? next.delete(name) : next.add(name)
+    if (next.has(name)) {
+      next.delete(name)
+    } else {
+      next.add(name)
+    }
     setSelected(next)
+    setFavouritesMessage('')
   }
 
   const query = search.toLowerCase()
   const filtered = query ? categories.filter(c => c.toLowerCase().includes(query)) : categories
 
-  const selectAll = () => setSelected(new Set(filtered))
-  const selectNone = () => setSelected(new Set())
+  const selectAll = () => {
+    setSelected(new Set(filtered))
+    setFavouritesMessage('')
+  }
+
+  const selectNone = () => {
+    setSelected(new Set())
+    setFavouritesMessage('')
+  }
+
+  const handleSaveFavourites = () => {
+    setFavouritesMessage('')
+    const saved = [...selected]
+    const error = saveFavourites(saved)
+    if (error) {
+      setFavourites(current => ({ ...current, error }))
+      return
+    }
+
+    setFavourites({ categories: saved, error: '' })
+    setFavouritesMessage(`${saved.length} favourite${saved.length === 1 ? '' : 's'} saved.`)
+  }
+
+  const handleUseFavourites = () => {
+    const { matched, missing } = matchFavourites(favourites.categories, categories)
+    if (!matched.length) {
+      setFavouritesMessage('None of your favourites are available in this playlist. Your current selection is unchanged.')
+      return
+    }
+
+    setSelected(new Set(matched))
+    setFavouritesMessage(
+      `${matched.length} favourite${matched.length === 1 ? '' : 's'} selected` +
+      (missing.length ? `; ${missing.length} unavailable in this playlist (kept in your favourites).` : '.'),
+    )
+  }
+
+  const handleForgetFavourites = () => {
+    setFavouritesMessage('')
+    const error = forgetFavourites()
+    if (error) {
+      setFavourites(current => ({ ...current, error }))
+      return
+    }
+
+    setFavourites({ categories: [], error: '' })
+    setFavouritesMessage('Favourites forgotten. Your current selection is unchanged.')
+    favouritesHeadingRef.current?.focus()
+  }
 
   const handleDownload = async () => {
     if (!selected.size) return setMessage('Select at least one category')
@@ -111,6 +168,7 @@ function App() {
     setServerFileName('')
     setMessage('')
     setSearch('')
+    setFavouritesMessage('')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -195,6 +253,7 @@ function App() {
               <input
                 ref={fileInputRef}
                 type="file"
+                aria-label="Choose M3U file"
                 accept=".m3u,audio/x-mpegurl"
                 onChange={handleUpload}
                 disabled={isProcessing}
@@ -224,6 +283,15 @@ function App() {
           )}
           
           {message && <p className="message error">{message}</p>}
+          {!hasFile && favourites.categories.length > 0 && (
+            <p className="favourites-summary">
+              {favourites.categories.length} favourite {favourites.categories.length === 1 ? 'category' : 'categories'} saved.
+              {' '}Load a playlist to use them.
+            </p>
+          )}
+          {!hasFile && favourites.error && (
+            <p className="message favourites-error" role="alert">{favourites.error}</p>
+          )}
         </section>
 
         {/* Category selection */}
@@ -234,17 +302,72 @@ function App() {
               <span className="badge">{selected.size} / {categories.length}</span>
             </div>
 
+            <div className="favourites" role="group" aria-labelledby="favourites-title">
+              <h3 id="favourites-title" ref={favouritesHeadingRef} tabIndex={-1}>Favourites</h3>
+              <p className="favourites-description" id="favourites-description">
+                {favourites.categories.length
+                  ? `${favourites.categories.length} ${favourites.categories.length === 1 ? 'category' : 'categories'} saved in this browser. Using favourites replaces your current selection.`
+                  : 'Save selected category names in this browser to reuse next time.'}
+              </p>
+              <div className="favourites-actions">
+                {favourites.categories.length > 0 ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-small favourites-use"
+                      onClick={handleUseFavourites}
+                      disabled={isProcessing}
+                      aria-describedby="favourites-description"
+                    >
+                      Use favourites
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-small"
+                      onClick={handleSaveFavourites}
+                      disabled={!selected.size || isProcessing}
+                      title="Replace favourites with all currently selected categories"
+                    >
+                      Update favourites
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-text"
+                      onClick={handleForgetFavourites}
+                      disabled={isProcessing}
+                    >
+                      Forget favourites
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-small"
+                    onClick={handleSaveFavourites}
+                    disabled={!selected.size || isProcessing}
+                  >
+                    Save selection as favourites
+                  </button>
+                )}
+              </div>
+              <p className="favourites-status" role="status" aria-atomic="true">{favouritesMessage}</p>
+              {favourites.error && (
+                <p className="message favourites-error" role="alert">{favourites.error}</p>
+              )}
+            </div>
+
             <div className="category-toolbar">
               <div className="search-box">
                 <span className="search-icon">🔍</span>
                 <input
                   type="text"
+                  aria-label="Search categories"
                   placeholder="Search categories..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
                 {search && (
-                  <button type="button" className="search-clear" onClick={() => setSearch('')}>
+                  <button type="button" className="search-clear" aria-label="Clear search" onClick={() => setSearch('')}>
                     ✕
                   </button>
                 )}

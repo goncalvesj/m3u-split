@@ -260,6 +260,83 @@
   color: #666;
 }
 
+/* Favourites */
+.favourites {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #333;
+}
+
+.favourites h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.favourites-description,
+.favourites-summary {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.favourites-summary {
+  margin-top: 0.75rem;
+}
+
+.favourites-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.favourites-actions button {
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+}
+
+.favourites-actions .btn-small {
+  color: #ddd;
+}
+
+.favourites-actions .favourites-use {
+  background: #30395e;
+  color: #d5dcff;
+}
+
+.favourites-actions .btn-text,
+.favourites-status {
+  color: #b2c0ff;
+}
+
+.favourites-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.favourites-actions button:focus-visible,
+.favourites h3:focus-visible {
+  outline: 2px solid #b2c0ff;
+  outline-offset: 3px;
+}
+
+.favourites-status {
+  margin: 0.65rem 0 0;
+  font-size: 0.8rem;
+}
+
+.favourites-status:empty {
+  margin: 0;
+}
+
+.favourites-error {
+  color: #ffaaa7;
+}
+
 /* Category toolbar */
 .category-toolbar {
   display: flex;
@@ -325,7 +402,7 @@
   width: auto;
 }
 
-.btn-small:hover {
+.btn-small:hover:not(:disabled) {
   background: #444;
   color: #eee;
 }
@@ -518,9 +595,38 @@
     color: #555;
   }
 
-  .btn-small:hover {
+  .btn-small:hover:not(:disabled) {
     background: #ddd;
     color: #333;
+  }
+
+  .favourites {
+    border-color: #e5e5e5;
+  }
+
+  .favourites-description,
+  .favourites-summary,
+  .favourites-actions .btn-small {
+    color: #555;
+  }
+
+  .favourites-actions .favourites-use {
+    background: #e9edff;
+    color: #394995;
+  }
+
+  .favourites-actions .btn-text,
+  .favourites-status {
+    color: #4657a8;
+  }
+
+  .favourites-actions button:focus-visible,
+  .favourites h3:focus-visible {
+    outline-color: #4657a8;
+  }
+
+  .favourites-error {
+    color: #b91c1c;
   }
 
   .category-item:hover {
