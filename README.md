@@ -8,7 +8,7 @@ Split and manage M3U playlists with a React + Vite frontend on GitHub Pages and 
 - Save favourite categories and reuse them with your next playlist
 - React 19 + TypeScript UI powered by Vite
 - Local file processing, selection, search, favourites and download never require an account
-- Optional Microsoft sign-in with server-verified account access; online playlist processing is not available yet
+- Optional Microsoft sign-in with server-verified account access, plus URL import for allowed accounts: the API downloads a provider playlist and returns only the filtered channels you pick (saved online profiles, refresh and TV feed links are not available yet)
 
 ## Repo layout
 
@@ -16,7 +16,7 @@ Split and manage M3U playlists with a React + Vite frontend on GitHub Pages and 
 - `api/` – .NET 9 isolated-worker Azure Functions v4 API
 - `api.tests/` – API token-validation and account-authorization regression tests
 
-## Optional online sign-in (Phase 1)
+## Optional online sign-in and URL import
 
 The default workflow remains entirely browser-local at
 [goncalvesj.github.io/m3u-split](https://goncalvesj.github.io/m3u-split/).
@@ -30,14 +30,21 @@ tenant/user object ID allowlist. A successful Microsoft login alone is not onlin
 authorization. Without configuration, or when authentication/the backend fails,
 local processing remains available.
 
-**Only the sign-in boundary is implemented.** URL import, saved online profiles,
-refresh, publishing and TV feed links are not exposed. The legacy upload/download
-functions are not the online feature; keep them disabled in standalone deployments.
+**URL import is available to verified accounts.** Paste a provider playlist URL
+in **Online playlists**: the Function App downloads it into private storage with
+SSRF protection and lists its categories with channel counts. Pick categories
+(with search and the same favourites) and download a server-generated filtered
+`channels.m3u`; the full provider file never reaches the browser. Imports are
+private to each account, one at a time, and expire after 24 hours by default.
+Saved online profiles, one-click refresh, publishing and TV feed links are not
+available yet. The legacy upload/download functions are not the online feature;
+keep them disabled in standalone deployments.
 
-See [Online sign-in and standalone API setup](docs/online-setup.md) for the exact
-Entra registrations, callbacks, public build variables, server settings, CORS
-and the API workflow, which builds on relevant pushes/PRs and deploys only by
-manual dispatch. No live resources or identities are configured in this repository.
+See [Online sign-in, URL import and standalone API setup](docs/online-setup.md)
+for the exact Entra registrations, callbacks, public build variables, server
+settings, playlist storage and roles, CORS and the API workflow, which builds on
+relevant pushes/PRs and deploys only by manual dispatch. No live resources or
+identities are configured in this repository.
 Pages remains the frontend host; the already-disabled SWA workflow is retained
 unchanged.
 

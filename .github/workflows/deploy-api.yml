@@ -65,7 +65,7 @@ jobs:
           client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Require configured auth and disabled legacy endpoints
+      - name: Require configured auth, import storage and disabled legacy endpoints
         shell: pwsh
         run: |
           $json = az functionapp config appsettings list --name $env:AZURE_FUNCTION_APP_NAME --resource-group $env:AZURE_RESOURCE_GROUP --output json
@@ -75,9 +75,14 @@ jobs:
           foreach ($name in @('OnlineAuth__TenantId', 'OnlineAuth__ApiClientId', 'OnlineAuth__SpaClientId', 'OnlineAuth__RequiredScope', 'OnlineAuth__AllowedObjectIds')) {
             if ([string]::IsNullOrWhiteSpace($settings[$name])) { throw "Missing Function App setting: $name" }
           }
+          $hasStorageConnectionString = -not [string]::IsNullOrWhiteSpace($settings['OnlinePlaylistStorage'])
+          $hasStorageIdentityUris = (-not [string]::IsNullOrWhiteSpace($settings['OnlinePlaylistStorage__blobServiceUri'])) -and (-not [string]::IsNullOrWhiteSpace($settings['OnlinePlaylistStorage__queueServiceUri']))
+          if (-not ($hasStorageConnectionString -or $hasStorageIdentityUris)) {
+            throw 'Missing URL import storage: set OnlinePlaylistStorage__blobServiceUri and OnlinePlaylistStorage__queueServiceUri, or an OnlinePlaylistStorage connection string.'
+          }
           if ($settings['FUNCTIONS_WORKER_RUNTIME'] -ne 'dotnet-isolated') { throw 'Expected the dotnet-isolated worker.' }
           foreach ($name in @('AzureWebJobs.Upload.Disabled', 'AzureWebJobs.Download.Disabled')) {
-            if ($settings[$name] -ne 'true') { throw "Phase 1 requires $name=true" }
+            if ($settings[$name] -ne 'true') { throw "The standalone API requires $name=true" }
           }
       - name: Deploy only the Function App
         uses: Azure/functions-action@v1

@@ -8,6 +8,12 @@
     "OnlineAuth__SpaClientId": "",
     "OnlineAuth__RequiredScope": "access_as_user",
     "OnlineAuth__AllowedObjectIds": "",
+    "OnlinePlaylistStorage": "UseDevelopmentStorage=true",
+    "OnlineImport__MaxDownloadMiB": "300",
+    "OnlineImport__DownloadTimeoutSeconds": "300",
+    "OnlineImport__IdleTimeoutSeconds": "60",
+    "OnlineImport__RetentionHours": "24",
+    "OnlineImport__UserAgent": "m3u-split/1.0",
     "AzureWebJobs.Upload.Disabled": "true",
     "AzureWebJobs.Download.Disabled": "true"
   },

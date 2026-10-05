@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { OnlineAccount, OnlineAuth, OnlineCredentials } from './online-auth'
 import { fetchOnlineSession, OnlineApiError } from './online-api'
 import { readOnlineConfiguration } from './online-config'
+import OnlineImport from './OnlineImport'
 
 type OnlineState =
   | { kind: 'initializing' | 'guest' | 'signing-in' | 'checking' | 'signing-out'; message: string }
@@ -74,6 +75,16 @@ export default function OnlinePlaylists() {
       }
     }
   }, [config, cancelPendingAccess])
+
+  // URL import calls fail like the session check when the API or Microsoft rejects this session.
+  const handleImportAccessError = useCallback((error: unknown) => {
+    setState(current => {
+      if (current.kind !== 'verified') return current
+      return error instanceof OnlineApiError
+        ? { kind: 'error', reason: error.kind === 'unauthorized' ? 'reauth' : 'access', message: error.message }
+        : { kind: 'error', reason: 'reauth', message: 'Microsoft needs you to sign in again or grant the API permission. Online access has not been verified.' }
+    })
+  }, [])
 
   useEffect(() => {
     if (!config) return
@@ -169,7 +180,7 @@ export default function OnlinePlaylists() {
         <h2 id="online-playlists-title">Online playlists</h2>
         <span className="badge">Optional</span>
       </div>
-      <p>This separate area checks Microsoft sign-in and online account access only. Local files above always work without an account.</p>
+      <p>This separate, optional area lets an allowed Microsoft account import a provider playlist by URL on the server. Local files above always work without an account.</p>
       {configuration.kind === 'unconfigured' ? (
         <p>Online sign-in is not configured for this build. You can still process and download local playlists.</p>
       ) : configuration.kind === 'invalid' ? (
@@ -184,7 +195,7 @@ export default function OnlinePlaylists() {
             className={state.kind === 'error' ? 'online-error' : 'online-status'}
           >{state.message}</p>
           {state.kind === 'verified' && (
-            <p>Only the sign-in boundary is ready. URL import, saved online profiles, refresh and TV feed links are not available yet.</p>
+            <p>URL import is available. Saved online profiles, one-click refresh and TV feed links are not available yet.</p>
           )}
           <div className="online-actions">
             {!auth && state.kind === 'error' ? (
@@ -212,6 +223,15 @@ export default function OnlinePlaylists() {
             )}
           </div>
           <p className="online-hint">Sign-in and sign-out use a popup, never a full-page redirect. Local files and browser favourites are not uploaded or cleared.</p>
+          {auth && account && config && (
+            <OnlineImport
+              key={account.id}
+              config={config}
+              auth={auth}
+              active={state.kind === 'verified'}
+              onAccessError={handleImportAccessError}
+            />
+          )}
         </>
       )}
     </section>
