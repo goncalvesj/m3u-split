@@ -31,10 +31,14 @@ const blobText = (blob: Blob) => new Promise<string>((resolve, reject) => {
 
 beforeEach(() => {
   window.localStorage.clear()
+  for (const key of ['VITE_ENTRA_TENANT_ID', 'VITE_ENTRA_SPA_CLIENT_ID', 'VITE_ENTRA_API_SCOPE', 'VITE_ONLINE_API_BASE_URL']) {
+    vi.stubEnv(key, '')
+  }
 })
 
 afterEach(() => {
   cleanup()
+  vi.unstubAllEnvs()
 })
 
 describe('category favourites', () => {

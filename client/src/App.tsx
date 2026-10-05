@@ -1,13 +1,10 @@
 import { useState, useRef } from 'react'
 import { extractCategories, filterByCategories } from './m3u-parser'
 import { forgetFavourites, loadFavourites, matchFavourites, saveFavourites } from './favourites'
+import OnlinePlaylists from './OnlinePlaylists'
 import './App.css'
 
-type ProcessingMode = 'client' | 'server'
-const ENABLE_SERVER_MODE = false
-
 function App() {
-  const [mode, setMode] = useState<ProcessingMode>('client')
   const [categories, setCategories] = useState<string[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [favourites, setFavourites] = useState(loadFavourites)
@@ -18,7 +15,6 @@ function App() {
   const [isDragging, setIsDragging] = useState(false)
   const [fileName, setFileName] = useState('')
   const [fileContent, setFileContent] = useState('')
-  const [serverFileName, setServerFileName] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const favouritesHeadingRef = useRef<HTMLHeadingElement>(null)
 
@@ -31,19 +27,11 @@ function App() {
     setFileName(file.name)
 
     try {
-      if (mode === 'client') {
-        const content = await file.text()
-        setFileContent(content)
-        setCategories(extractCategories(content))
-      } else {
-        const formData = new FormData()
-        formData.append('file', file)
-        const data = await (await fetch('/api/upload', { method: 'POST', body: formData })).json()
-        setCategories(data.categories ? Object.keys(data.categories) : [])
-        setServerFileName(data.fileName || '')
-      }
+      const content = await file.text()
+      setFileContent(content)
+      setCategories(extractCategories(content))
     } catch {
-      setMessage(mode === 'client' ? 'Failed to read file' : 'Upload failed')
+      setMessage('Failed to read file')
       setFileName('')
     } finally {
       setIsProcessing(false)
@@ -143,13 +131,7 @@ function App() {
 
     try {
       const cats = [...selected]
-      const result = mode === 'client'
-        ? filterByCategories(fileContent, cats)
-        : await (await fetch('/api/download', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fileName: serverFileName, categories: cats.map(name => ({ name })) }),
-          })).text()
+      const result = filterByCategories(fileContent, cats)
 
       const a = document.createElement('a')
       a.href = URL.createObjectURL(new Blob([result], { type: 'audio/x-mpegurl' }))
@@ -165,7 +147,6 @@ function App() {
     setSelected(new Set())
     setFileName('')
     setFileContent('')
-    setServerFileName('')
     setMessage('')
     setSearch('')
     setFavouritesMessage('')
@@ -201,35 +182,6 @@ function App() {
             <span className="step-label">Download</span>
           </div>
         </div>
-
-        {/* Mode toggle - hidden until backend is ready */}
-        {ENABLE_SERVER_MODE && (
-          <section className="card">
-            <div className="card-header">
-              <h2>Processing Mode</h2>
-            </div>
-            <div className="mode-toggle">
-              <button
-                type="button"
-                className={`mode-btn ${mode === 'client' ? 'active' : ''}`}
-                onClick={() => setMode('client')}
-              >
-                <span className="mode-icon">🔒</span>
-                <span className="mode-title">Client-side</span>
-                <span className="mode-desc">Private • No upload</span>
-              </button>
-              <button
-                type="button"
-                className={`mode-btn ${mode === 'server' ? 'active' : ''}`}
-                onClick={() => setMode('server')}
-              >
-                <span className="mode-icon">☁️</span>
-                <span className="mode-title">Server-side</span>
-                <span className="mode-desc">API processing</span>
-              </button>
-            </div>
-          </section>
-        )}
 
         {/* File upload */}
         <section className="card">
@@ -420,10 +372,11 @@ function App() {
             )}
           </section>
         )}
+        <OnlinePlaylists />
       </main>
 
       <footer className="footer">
-        <p>Your data stays {mode === 'client' ? 'private — processed locally in your browser' : 'secure — processed on the server'}</p>
+        <p>Local playlist files stay private — processed in your browser</p>
       </footer>
     </div>
   )

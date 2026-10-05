@@ -45,6 +45,11 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_ENTRA_TENANT_ID: ${{ vars.VITE_ENTRA_TENANT_ID }}
+          VITE_ENTRA_SPA_CLIENT_ID: ${{ vars.VITE_ENTRA_SPA_CLIENT_ID }}
+          VITE_ENTRA_API_SCOPE: ${{ vars.VITE_ENTRA_API_SCOPE }}
+          VITE_ONLINE_API_BASE_URL: ${{ vars.VITE_ONLINE_API_BASE_URL }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

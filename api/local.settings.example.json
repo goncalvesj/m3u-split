@@ -1,0 +1,19 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "OnlineAuth__TenantId": "",
+    "OnlineAuth__ApiClientId": "",
+    "OnlineAuth__SpaClientId": "",
+    "OnlineAuth__RequiredScope": "access_as_user",
+    "OnlineAuth__AllowedObjectIds": "",
+    "AzureWebJobs.Upload.Disabled": "true",
+    "AzureWebJobs.Download.Disabled": "true"
+  },
+  "Host": {
+    "LocalHttpPort": 7071,
+    "CORS": "http://localhost:5173",
+    "CORSCredentials": false
+  }
+}

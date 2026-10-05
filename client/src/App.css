@@ -337,6 +337,46 @@
   color: #ffaaa7;
 }
 
+/* Online access is independent of local file processing. */
+.online-playlists p {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.online-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.online-actions button {
+  min-height: 44px;
+  color: #ddd;
+}
+
+.online-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.online-actions button:focus-visible {
+  outline: 2px solid #b2c0ff;
+  outline-offset: 3px;
+}
+
+.online-status {
+  color: #b2c0ff;
+}
+
+.online-error {
+  color: #ffaaa7;
+}
+
+.online-hint {
+  color: #aaa;
+}
+
 /* Category toolbar */
 .category-toolbar {
   display: flex;
@@ -626,6 +666,23 @@
   }
 
   .favourites-error {
+    color: #b91c1c;
+  }
+
+  .online-actions button,
+  .online-hint {
+    color: #555;
+  }
+
+  .online-status {
+    color: #4657a8;
+  }
+
+  .online-actions button:focus-visible {
+    outline-color: #4657a8;
+  }
+
+  .online-error {
     color: #b91c1c;
   }
 
