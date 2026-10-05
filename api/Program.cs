@@ -15,6 +15,9 @@ builder.Services.AddSingleton<OnlineAccess>();
 builder.Services.AddAzureClientsCore();
 builder.Services.AddSingleton<OnlineImportService>();
 
+// Saved profiles: same storage account and download limits as URL import, separate container and queues.
+builder.Services.AddSingleton<OnlineProfileService>();
+
 builder.Services
     .AddApplicationInsightsTelemetryWorkerService()
     .ConfigureFunctionsApplicationInsights();

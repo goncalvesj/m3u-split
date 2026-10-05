@@ -879,3 +879,291 @@
     outline-color: #4657a8;
   }
 }
+
+/* Saved online profiles, inside the Online playlists card */
+.online-profiles {
+  min-width: 0;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #333;
+}
+
+.online-profiles h3,
+.online-profiles h4,
+.online-profiles h5 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.online-profiles h5 {
+  font-size: 0.85rem;
+}
+
+.online-profiles h3:focus-visible,
+.online-profiles h4:focus-visible,
+.online-profiles h5:focus-visible,
+.online-profile-missing summary:focus-visible {
+  outline: 2px solid #b2c0ff;
+  outline-offset: 3px;
+}
+
+.online-profiles .online-profile-meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.online-profiles .online-profile-status {
+  margin: 0.35rem 0 0;
+}
+
+.online-profiles .online-profile-failed {
+  color: #ffaaa7;
+}
+
+.online-profiles-status:empty,
+.online-profiles-notice:empty,
+.online-profiles .online-profile-status:empty,
+.online-profile-notice:empty,
+.online-profile-loading:empty {
+  margin: 0;
+}
+
+.online-profiles .online-actions {
+  margin-top: 0.75rem;
+}
+
+.online-profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.online-profile {
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid #2f2f2f;
+  border-radius: 12px;
+}
+
+.online-profile-progress {
+  display: block;
+  width: 100%;
+  height: 0.5rem;
+  margin-top: 0.5rem;
+  accent-color: #667eea;
+}
+
+.online-profile-missing {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.online-profile-missing summary {
+  padding: 0.75rem 0;
+  color: #f2c37a;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.online-profile-missing ul {
+  max-height: 10rem;
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.online-profiles .online-actions .online-profile-danger {
+  background: #5a1f1f;
+  color: #ffd6d4;
+}
+
+.online-profiles .online-actions .online-profile-danger:hover:not(:disabled) {
+  background: #742828;
+  color: #fff;
+}
+
+.online-profile-panel {
+  min-width: 0;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #333;
+}
+
+.online-profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  margin-top: 0.75rem;
+}
+
+.online-profiles .online-profile-form p {
+  margin: 0;
+}
+
+.online-profiles .online-profile-form .online-actions {
+  margin-top: 0.25rem;
+}
+
+.online-profile-form label {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.online-profile-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0.5rem 0.75rem;
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  font-size: 1rem;
+}
+
+.online-profile-input::placeholder {
+  color: #666;
+}
+
+.online-profile-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.online-profile-check input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: #667eea;
+}
+
+.online-profile-editor {
+  min-width: 0;
+  margin-top: 0.75rem;
+}
+
+.online-profile-outdated {
+  margin-bottom: 0.75rem;
+}
+
+.online-profiles .online-profile-outdated .online-profile-meta {
+  color: #f2c37a;
+}
+
+.online-profiles .search-box input {
+  min-width: 0;
+}
+
+.online-profiles .select-actions {
+  flex-wrap: wrap;
+}
+
+.online-profiles .select-actions .btn-small {
+  min-height: 44px;
+}
+
+.online-profiles .select-actions .btn-small:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.online-profile-input:focus-visible,
+.online-profiles .select-actions .btn-small:focus-visible,
+.online-profiles .search-clear:focus-visible {
+  outline: 2px solid #b2c0ff;
+  outline-offset: 2px;
+}
+
+.online-profiles .category-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.online-profile-count {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #888;
+  font-variant-numeric: tabular-nums;
+}
+
+.online-profile-kept {
+  color: #f2c37a;
+}
+
+.online-profile-empty {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.online-profiles .hint,
+.online-profiles .empty-state p {
+  font-size: 0.8rem;
+}
+
+@media (prefers-color-scheme: light) {
+  .online-profiles,
+  .online-profile,
+  .online-profile-panel {
+    border-color: #e5e5e5;
+  }
+
+  .online-profiles .online-profile-meta {
+    color: #555;
+  }
+
+  .online-profiles .online-profile-failed {
+    color: #b91c1c;
+  }
+
+  .online-profile-missing summary,
+  .online-profile-kept,
+  .online-profiles .online-profile-outdated .online-profile-meta {
+    color: #8a5a00;
+  }
+
+  .online-profiles .online-actions .online-profile-danger {
+    background: #fde2e1;
+    color: #8a1c1c;
+  }
+
+  .online-profiles .online-actions .online-profile-danger:hover:not(:disabled) {
+    background: #fbcfcd;
+    color: #6f1414;
+  }
+
+  .online-profile-input {
+    background: #f5f5f5;
+    border-color: #ddd;
+  }
+
+  .online-profile-input::placeholder {
+    color: #888;
+  }
+
+  .online-profile-count {
+    color: #666;
+  }
+
+  .online-profiles h3:focus-visible,
+  .online-profiles h4:focus-visible,
+  .online-profiles h5:focus-visible,
+  .online-profile-missing summary:focus-visible,
+  .online-profile-input:focus-visible,
+  .online-profiles .select-actions .btn-small:focus-visible,
+  .online-profiles .search-clear:focus-visible {
+    outline-color: #4657a8;
+  }
+}

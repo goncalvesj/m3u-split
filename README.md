@@ -8,7 +8,7 @@ Split and manage M3U playlists with a React + Vite frontend on GitHub Pages and 
 - Save favourite categories and reuse them with your next playlist
 - React 19 + TypeScript UI powered by Vite
 - Local file processing, selection, search, favourites and download never require an account
-- Optional Microsoft sign-in with server-verified account access, plus URL import for allowed accounts: the API downloads a provider playlist and returns only the filtered channels you pick (saved online profiles, refresh and TV feed links are not available yet)
+- Optional Microsoft sign-in with server-verified account access, plus URL import and saved profiles for allowed accounts: the API downloads a provider playlist and returns only the filtered channels you pick, and a saved profile regenerates them with one click (TV feed links are not available yet)
 
 ## Repo layout
 
@@ -16,7 +16,7 @@ Split and manage M3U playlists with a React + Vite frontend on GitHub Pages and 
 - `api/` – .NET 9 isolated-worker Azure Functions v4 API
 - `api.tests/` – API token-validation and account-authorization regression tests
 
-## Optional online sign-in and URL import
+## Optional online sign-in, URL import and saved profiles
 
 The default workflow remains entirely browser-local at
 [goncalvesj.github.io/m3u-split](https://goncalvesj.github.io/m3u-split/).
@@ -36,11 +36,18 @@ SSRF protection and lists its categories with channel counts. Pick categories
 (with search and the same favourites) and download a server-generated filtered
 `channels.m3u`; the full provider file never reaches the browser. Imports are
 private to each account, one at a time, and expire after 24 hours by default.
-Saved online profiles, one-click refresh, publishing and TV feed links are not
-available yet. The legacy upload/download functions are not the online feature;
-keep them disabled in standalone deployments.
 
-See [Online sign-in, URL import and standalone API setup](docs/online-setup.md)
+**Saved profiles** keep a name, a provider URL and your chosen categories on the
+server, up to 10 per account by default. One click on **Refresh now** downloads
+the playlist again and regenerates the filtered playlist on the server, and
+**Download latest** saves the newest result at any time. A failed refresh keeps
+the last good playlist. The stored URL stays in private storage until you delete
+the profile or change its URL, and is never shown, returned or logged; only its
+host is displayed. TV feed links are not available yet. The legacy
+upload/download functions are not the online feature; keep them disabled in
+standalone deployments.
+
+See [Online sign-in, URL import, saved profiles and standalone API setup](docs/online-setup.md)
 for the exact Entra registrations, callbacks, public build variables, server
 settings, playlist storage and roles, CORS and the API workflow, which builds on
 relevant pushes/PRs and deploys only by manual dispatch. No live resources or

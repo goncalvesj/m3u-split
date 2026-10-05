@@ -3,6 +3,7 @@ import type { OnlineAccount, OnlineAuth, OnlineCredentials } from './online-auth
 import { fetchOnlineSession, OnlineApiError } from './online-api'
 import { readOnlineConfiguration } from './online-config'
 import OnlineImport from './OnlineImport'
+import OnlineProfiles from './OnlineProfiles'
 
 type OnlineState =
   | { kind: 'initializing' | 'guest' | 'signing-in' | 'checking' | 'signing-out'; message: string }
@@ -195,7 +196,7 @@ export default function OnlinePlaylists() {
             className={state.kind === 'error' ? 'online-error' : 'online-status'}
           >{state.message}</p>
           {state.kind === 'verified' && (
-            <p>URL import is available. Saved online profiles, one-click refresh and TV feed links are not available yet.</p>
+            <p>URL import and saved profiles with one-click refresh are available. TV feed links are not available yet.</p>
           )}
           <div className="online-actions">
             {!auth && state.kind === 'error' ? (
@@ -226,6 +227,15 @@ export default function OnlinePlaylists() {
           {auth && account && config && (
             <OnlineImport
               key={account.id}
+              config={config}
+              auth={auth}
+              active={state.kind === 'verified'}
+              onAccessError={handleImportAccessError}
+            />
+          )}
+          {auth && account && config && (
+            <OnlineProfiles
+              key={`profiles:${account.id}`}
               config={config}
               auth={auth}
               active={state.kind === 'verified'}
