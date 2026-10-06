@@ -38,12 +38,15 @@ The API limits the requests of each client address and of each instance. It
 also limits the downloads of each TV link. Refer to
 [Rate limits and cost protection](#rate-limits-and-cost-protection).
 
-The frontend stays at **https://goncalvesj.github.io/m3u-split/**, with Vite's
-existing `/m3u-split/` base. Nothing installs or replaces a service worker or PWA
-manifest. An already loaded app can continue processing local files offline;
-this change does not add a new cold-start offline cache or change the browser's
-existing installation/caching behavior. Microsoft sign-in and API verification
-require a network connection.
+The Azure UI is at **https://m3u-split.azurewebsites.net/**.
+GitHub Pages stays at **https://goncalvesj.github.io/m3u-split/**, with Vite's
+default `/m3u-split/` base.
+The App Service build uses `/`.
+
+Neither host adds or replaces a service worker or PWA manifest.
+After the app loads, it can process local files without a network connection.
+The app does not add an offline cache for a first visit.
+Microsoft sign-in and API verification use a network connection.
 
 No resources, app registrations, permissions or deployments are created by
 checking out or building this code. Obtain approval before creating paid Azure
@@ -69,11 +72,13 @@ ID in this tenant**. This implementation deliberately does not use `common`,
    client secret or certificate for token validation.
 2. Register the **SPA** application, separately from the API. Record its
    Application (client) ID. Under **Authentication**, add a **Single-page
-   application (SPA)** platform, not a Web platform. Register only this exact URI:
+   application (SPA)** platform, not a Web platform.
+   Register the exact callback for each UI host that you enable:
 
    | Use | SPA redirect and post-logout URI |
    | --- | --- |
-   | Existing GitHub Pages site | `https://goncalvesj.github.io/m3u-split/auth.html` |
+   | Azure UI | `https://m3u-split.azurewebsites.net/auth.html` |
+   | GitHub Pages | `https://goncalvesj.github.io/m3u-split/auth.html` |
 
    Do not add a `localhost` URI to this production registration. For local
    development, use a separate SPA registration. See
@@ -160,6 +165,127 @@ URLs/passwords or deployment credentials in any `VITE_*` variable. The frontend
 sends an API **access token** in `Authorization: Bearer ...` to the explicit
 backend base URL. It omits cookies, forbids HTTP redirect following for this
 request, and does not send an email/identity parameter for authorization.
+
+## UI on Azure App Service
+
+The UI at **https://m3u-split.azurewebsites.net/** uses only local files.
+The **Online playlists** section states that sign-in is not configured.
+This deployment does not deploy the API or configure Entra or API CORS.
+The GitHub Pages default base and workflows stay unchanged.
+
+### Host settings
+
+The placeholders replace the real Azure IDs and names.
+Keep the real values outside this public repository.
+
+- Web App: `m3u-split`.
+- Subscription: `<SUBSCRIPTION-ID>`.
+- Resource group: `<RESOURCE-GROUP>`.
+- App Service plan: `<APP-SERVICE-PLAN>`.
+- Plan OS: Linux.
+- Plan SKU: B1 (Basic).
+- Region: France Central.
+- Runtime: Node 24 LTS (`NODE|24-lts`).
+- Startup command: `pm2 serve /home/site/wwwroot --no-daemon --spa`.
+- HTTPS only: enabled.
+- Minimum TLS: 1.2 for the app and SCM.
+- FTP and FTPS: disabled.
+- Basic authentication: disabled for SCM and FTP.
+- HTTP/2: enabled.
+- ARR affinity: disabled.
+- Always On: enabled.
+- Remote build: disabled (`SCM_DO_BUILD_DURING_DEPLOYMENT=false`).
+- Application Insights: none.
+- Managed identity: none.
+
+The app settings contain no secrets.
+The deployment uses Microsoft Entra authentication through the Azure CLI.
+It does not change the plan or other apps.
+
+### Build and deploy again
+
+Use PowerShell 7 from the repository root.
+Replace `<SUBSCRIPTION-ID>` and `<RESOURCE-GROUP>` with the real values.
+Make sure that the Azure CLI has a signed-in account for this subscription.
+These commands repeat the local-only UI deployment.
+The guard permits only `.env.example`, which Vite does not load.
+The zip file holds the contents of `dist`, not the `dist` folder.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$subscription = '<SUBSCRIPTION-ID>'
+$resourceGroup = '<RESOURCE-GROUP>'
+if ($subscription.StartsWith('<') -or $resourceGroup.StartsWith('<')) {
+    throw 'Replace the placeholders with the real values.'
+}
+$zip = Join-Path ([System.IO.Path]::GetTempPath()) 'm3u-split-ui.zip'
+if (Test-Path -LiteralPath $zip) {
+    throw 'The temporary zip file already exists.'
+}
+
+Set-Location .\client
+$envFiles = @(
+    Get-ChildItem -LiteralPath . -Force -File |
+        Where-Object { $_.Name -like '.env*' -and $_.Name -ne '.env.example' }
+)
+if ($envFiles.Count -gt 0) {
+    throw 'The UI build must not use local environment files.'
+}
+$env:VITE_ENTRA_TENANT_ID = ''
+$env:VITE_ENTRA_SPA_CLIENT_ID = ''
+$env:VITE_ENTRA_API_SCOPE = ''
+$env:VITE_ONLINE_API_BASE_URL = ''
+
+npm ci --no-audit --no-fund
+if ($LASTEXITCODE -ne 0) {
+    throw 'The dependency install failed.'
+}
+& $env:ComSpec /d /c 'npm run build -- --base /'
+if ($LASTEXITCODE -ne 0) {
+    throw 'The UI build failed.'
+}
+
+$dist = (Resolve-Path -LiteralPath .\dist).Path
+try {
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($dist, $zip)
+    az webapp deploy --subscription $subscription `
+        --resource-group $resourceGroup --name m3u-split `
+        --src-path $zip --type zip --timeout 600000 `
+        --output json --only-show-errors
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The UI deployment failed.'
+    }
+}
+finally {
+    if (Test-Path -LiteralPath $zip) {
+        Remove-Item -LiteralPath $zip
+    }
+    Remove-Item -LiteralPath $dist -Recurse
+    Set-Location ..
+}
+```
+
+The command shell preserves the Vite arguments on Windows.
+The build runs `tsc -b` and `vite build --base /`.
+Vite writes both `index.html` and `auth.html` at the app root.
+The default build still uses `/m3u-split/` for GitHub Pages.
+Do not commit `node_modules` or `dist`.
+
+### Later online setup
+
+- SPA redirect and post-logout URI: `https://m3u-split.azurewebsites.net/auth.html`.
+- API CORS origin: `https://m3u-split.azurewebsites.net` (no path).
+- `VITE_ENTRA_TENANT_ID`: the production tenant Directory ID.
+- `VITE_ENTRA_SPA_CLIENT_ID`: the production SPA Application (client) ID.
+- `VITE_ENTRA_API_SCOPE`: `api://<API-APPLICATION-CLIENT-ID>/access_as_user`.
+- `VITE_ONLINE_API_BASE_URL`: `https://<YOUR-FUNCTION-APP-HOST>/api/`.
+
+Register the callback on the SPA platform, not the Web platform.
+Do not add a `localhost` callback to the production SPA.
+Configure the API and CORS before you supply the four public values.
+Replace the four empty assignments above with those values.
+Rebuild and deploy the UI after the API deployment.
+App settings alone cannot change the compiled client.
 
 ## Standalone Function App settings
 
@@ -265,10 +391,11 @@ or unexpectedly redirect API calls to an HTML login page.
 
 ## CORS: exact origins, not authentication
 
-In the Function App's **API -> CORS** settings, remove wildcard origins and add
-only the production origin:
+In the Function App's **API -> CORS** settings, remove wildcard origins.
+Add only the origin of each UI host that you enable:
 
-- Production: **`https://goncalvesj.github.io`** (no `/m3u-split/` path).
+- Azure UI: **`https://m3u-split.azurewebsites.net`** (no path).
+- GitHub Pages: **`https://goncalvesj.github.io`** (no `/m3u-split/` path).
 
 Do not add a `localhost` origin to the production Function App. Local
 development uses the local Core Tools host and its own CORS setting.
@@ -1354,10 +1481,16 @@ updates:
 Also pin the actions in the workflows on `master` to commit SHAs. Give each
 workflow only the permissions that it uses.
 
-After you set the server configuration and CORS, push the `azure` branch. Then
-approve the deployment. Deploy Pages separately after you set its public
-variables. No workflow deploys to both hosts, and no workflow makes paid
-resources. No workflow ran for these local code changes.
+After you set the server configuration and CORS, push the `azure` branch.
+Then approve the API deployment.
+Deploy the App Service UI separately with the commands above.
+Deploy Pages separately if you use it.
+Each host uses its own public build variables.
+Rebuild the selected UI after the API deployment.
+
+No workflow deploys to both UI hosts.
+No workflow makes paid resources.
+This local UI deployment runs no GitHub workflow.
 
 ## Authentication behavior and verification
 

@@ -1,6 +1,7 @@
 # m3u-split
 
-Split and manage M3U playlists with a React + Vite frontend on GitHub Pages and an optional, standalone .NET 9 Azure Functions API.
+Split and manage M3U playlists with a React + Vite UI on Azure App Service or GitHub Pages.
+The optional API uses .NET 9 Azure Functions.
 
 ## Highlights
 
@@ -18,7 +19,10 @@ Split and manage M3U playlists with a React + Vite frontend on GitHub Pages and 
 
 ## Optional online sign-in, URL import and saved profiles
 
-The default workflow remains entirely browser-local at
+The local file workflow stays entirely in the browser.
+The Azure UI is at
+[m3u-split.azurewebsites.net](https://m3u-split.azurewebsites.net/).
+GitHub Pages stays at
 [goncalvesj.github.io/m3u-split](https://goncalvesj.github.io/m3u-split/).
 The separate **Online playlists** section uses Microsoft sign-in in a popup,
 then verifies an API access token against `GET /api/online/session` on a
@@ -60,10 +64,11 @@ for the exact Entra registrations, callbacks, public build variables, server
 settings, rate limits, playlist storage and roles, CORS, the hosting plan and
 cost guards, and the API workflow. The workflow builds the API for pushes and
 pull requests to the `azure` branch. It deploys a push to `azure` after a
-reviewer approves the deployment. No live resources or
-identities are configured in this repository.
-Pages remains the frontend host; the already-disabled SWA workflow is retained
-unchanged.
+reviewer approves the deployment.
+The Azure UI uses App Service, but the API has no live deployment.
+Entra registrations and API CORS are future tasks.
+GitHub Pages keeps `master` as its source.
+The disabled SWA workflow stays unchanged.
 
 ## Category favourites
 
