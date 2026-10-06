@@ -1167,3 +1167,33 @@
     outline-color: #4657a8;
   }
 }
+
+/* Secret TV links for saved profiles */
+.online-feed {
+  min-width: 0;
+}
+
+.online-feed-url {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+}
+
+.online-profiles .online-feed-warning {
+  color: #f2c37a;
+}
+
+.online-feed-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.online-feed-notice:empty {
+  margin: 0;
+}
+
+@media (prefers-color-scheme: light) {
+  .online-profiles .online-feed-warning {
+    color: #8a5a00;
+  }
+}

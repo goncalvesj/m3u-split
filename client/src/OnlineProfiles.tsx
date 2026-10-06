@@ -31,6 +31,7 @@ import type {
   ProfileOutput,
   ProfileRefresh,
 } from './online-profiles'
+import { ProfileFeedLink } from './ProfileFeedLink'
 
 interface OnlineProfilesProps {
   config: OnlineConfiguration
@@ -913,6 +914,7 @@ function ProfileItem({
         </div>
       )}
 
+      <ProfileFeedLink profile={profile} config={config} auth={auth} onAccessError={onAccessError} onMissing={onMissing} />
       {itemError && <p role="alert" className="online-error">{itemError}</p>}
       <p className="online-status online-profile-notice" role="status" aria-atomic="true">{notice}</p>
     </li>

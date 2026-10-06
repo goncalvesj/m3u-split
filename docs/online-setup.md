@@ -1,4 +1,4 @@
-# Online playlists: Microsoft sign-in, standalone Functions, URL import and saved profiles
+# Online playlists: Microsoft sign-in, standalone Functions, URL import, saved profiles and TV links
 
 ## What is ready
 
@@ -26,7 +26,13 @@ A profile is a name, a provider URL and a set of chosen categories, stored on
 the server. **Refresh** downloads the provider playlist again and regenerates
 the filtered playlist on the server; **Download latest** saves the most recent
 successful result at any time. A failed refresh keeps the last good playlist.
-Stable TV feed URLs belong to a later phase and are not available yet.
+
+Phase 4 adds **secret TV links** (see
+[Phase 4: secret TV links for Smart IPTV](#phase-4-secret-tv-links-for-smart-iptv)).
+Each saved profile can have one permanent, read-only link that Smart IPTV
+**My List** loads without sign-in. It always serves the profile's latest
+successful playlist, and its owner can copy, regenerate or revoke it while
+signed in.
 
 The frontend stays at **https://goncalvesj.github.io/m3u-split/**, with Vite's
 existing `/m3u-split/` base. Nothing installs or replaces a service worker or PWA
@@ -164,6 +170,12 @@ limits, plus the optional `OnlineProfiles__MaxProfilesPerUser`; see
 [Profile settings](#profile-settings). When any of them is missing or invalid,
 the profile endpoints answer `503 profiles_not_configured` instead.
 
+TV links need no settings of their own. They use the saved-profile
+configuration and the `OnlineAuth__*` settings; when either is missing or
+invalid, the TV link endpoints answer `503 feeds_not_configured`. Setting
+`AzureWebJobs.OnlineFeed.Disabled` to `true` turns every TV link off; see
+[TV link kill switches](#tv-link-kill-switches).
+
 The Functions host also needs its normal **host storage** configuration
 (`AzureWebJobsStorage`, or the hosting plan's supported identity-based
 `AzureWebJobsStorage__...` configuration with the required storage roles).
@@ -171,19 +183,22 @@ Prefer managed identity where supported; if a connection string is necessary,
 keep it only in server settings/Key Vault. Follow the selected plan's normal
 content/deployment-storage requirements. Host storage is infrastructure, not
 playlist storage: URL imports use the separate `OnlinePlaylistStorage`
-connection described in Phase 2, never `AzureWebJobsStorage`. The hourly import
-and profile cleanup timers use host storage only for the host's normal timer lock. Existing
+connection described in Phase 2, never `AzureWebJobsStorage`. The hourly import,
+profile and TV link cleanup timers use host storage only for the host's normal timer lock. Existing
 `UseBlobStorage`, `StorageConnectionString` and `FilePath` settings belong to
 disabled legacy functions and are not needed by the online functions.
 
 The session function uses `AuthorizationLevel.Anonymous` **at the Function-key
 layer only** so a SPA need not embed a shared Function key. `OnlineSession.Run`
 unconditionally calls `OnlineAccess.AuthorizeAsync` before producing a
-successful response. The Phase 2 import endpoints and Phase 3 profile endpoints
-follow the same pattern: each calls the guard before any other work, maps denials identically and derives
+successful response. The Phase 2 import endpoints, Phase 3 profile endpoints and Phase 4 TV link
+management endpoints follow the same pattern: each calls the guard before any other work, maps denials identically and derives
 data ownership only from the validated `tid`/`oid`. Future online functions
 must do the same; copying the anonymous trigger without the guard would
-be unsafe. This implementation does not rely on unsupported `[Authorize]`
+be unsafe. The one deliberate exception is the Phase 4 `OnlineFeed` function,
+which serves a TV link to Smart IPTV without sign-in and is authorized by the
+secret token in its URL instead; see [TV link security](#tv-link-security).
+This implementation does not rely on unsupported `[Authorize]`
 attributes or ASP.NET middleware routing in the isolated worker.
 
 The legacy `Upload`/`Download` triggers retain `AuthorizationLevel.Function`.
@@ -719,7 +734,239 @@ must keep its URL to refresh it, unlike an import.
 - The browser chooses the downloaded file name from the profile name, because
   CORS cannot expose `Content-Disposition`. Azure's HTTP response limit of
   about 230 seconds also applies to very slow downloads.
-- Stable TV feed links are not available yet.
+- A TV link serves the latest successful output and never starts a refresh;
+  see [Phase 4](#phase-4-secret-tv-links-for-smart-iptv).
+
+## Phase 4: secret TV links for Smart IPTV
+
+Smart IPTV **My List** can load a playlist from a link, but a full provider
+playlist is often too large for the TV app. A TV link gives a saved profile a
+permanent, secret, read-only URL that always serves the profile's latest
+successful filtered playlist, so the TV loads only the chosen categories.
+
+- Its owner creates, copies, regenerates and revokes the link while signed in.
+  The link itself works without sign-in, cookies or extra headers: the random
+  token in its path is the credential.
+- A profile has at most one active link. Links do not expire: a link works
+  until it is regenerated or revoked, its profile is deleted or its owner
+  leaves the allowlist.
+- The link serves the output of the latest successful **Refresh**. A failed
+  refresh keeps serving the previous playlist, and loading the link never
+  starts a refresh.
+
+In the app, each saved profile has a collapsed **TV link** button. Opening it
+loads the profile's link (nothing is requested before that) and then offers
+**Create TV link**, or shows the link in a read-only field with **Copy link**,
+**Regenerate link** and **Revoke link**. Regenerating and revoking ask for
+confirmation first. If the browser does not allow copying, the link is
+selected in its field for a manual copy.
+
+### Using a TV link with Smart IPTV
+
+1. Refresh the profile successfully at least once. Until then the link
+   answers `404 feed_not_ready`.
+2. Open **TV link** on the profile, choose **Create TV link** and copy the
+   link. It has the form `https://<FUNCTION-APP-HOST>/api/feed/<TOKEN>.m3u`.
+3. On the Smart IPTV My List page, add the link once as an external playlist
+   link for your TV, following that page's instructions.
+4. After each successful refresh of the profile, the TV gets the new playlist
+   the next time it loads the list. The link itself does not change.
+
+If the link may have been shared or exposed, choose **Regenerate link** and
+replace it in My List: the old link stops working immediately. A link to a
+local Core Tools host (`http://localhost:7071/api/...`) works only on that
+computer.
+
+### TV link endpoints
+
+The owner endpoints manage a profile's link. Like the profile endpoints, each
+uses `AuthorizationLevel.Anonymous` at the Function-key layer only, calls
+`OnlineAccess.AuthorizeAsync` before any other work, maps denials exactly like
+the session endpoint and only touches profiles stored under the caller's
+validated tenant and object IDs. Every response sends `Cache-Control: no-store`
+and no request needs a body. A link is returned as
+`{ "token": "<43 characters>", "createdAt": "..." }`; the app builds the URL
+from the token and its API base URL.
+
+| Function | Method and route | Success |
+| --- | --- | --- |
+| `OnlineFeedGet` | `GET online/profiles/{profileId}/feed` | `200` with the link |
+| `OnlineFeedCreate` | `POST online/profiles/{profileId}/feed` | `201` with a new link, or `200` with the existing one. A profile never gets a second link |
+| `OnlineFeedRegenerate` | `POST online/profiles/{profileId}/feed/regenerate` | `200` with a new token. The previous link stops working at once |
+| `OnlineFeedRevoke` | `DELETE online/profiles/{profileId}/feed` | `204`, also when the profile has no link |
+
+| Status | `error` | Meaning |
+| --- | --- | --- |
+| 401, 403, 503 | Guard codes | Exactly as for `GET /api/online/session` |
+| 404 | `profile_not_found` | Unknown, malformed, deleted or **another user's** profile ID |
+| 404 | `feed_not_found` | Get or regenerate: the profile has no link. Regenerate never creates one, so a stale page cannot bring back a revoked link |
+| 503 | `feeds_not_configured` | Saved profiles, `OnlineAuth__*` or the storage connection missing or invalid |
+| 503 | `feeds_unavailable` | Storage temporarily unavailable, or too many simultaneous changes to the same link; retry |
+
+The link itself is served by `OnlineFeed`:
+
+| Function | Method and route | Success |
+| --- | --- | --- |
+| `OnlineFeed` | `GET` or `HEAD` `feed/{token}`, with or without a `.m3u` suffix | `200`, streamed `audio/x-mpegurl; charset=utf-8` with `Content-Length` and `Content-Disposition: attachment`. `HEAD` gets the same status and headers without a body |
+
+| Status | `error` | Meaning |
+| --- | --- | --- |
+| 404 | `feed_not_found` | The link does not work. Status, body and headers are identical whatever the reason |
+| 404 | `feed_not_ready` | The link is valid, but its profile has no successful refresh yet |
+| 503 | `feeds_not_configured` | As for the owner endpoints |
+| 503 | `feeds_unavailable` | Storage temporarily unavailable; retry. No details are returned |
+
+`OnlineFeed` uses `AuthorizationLevel.Anonymous` and deliberately does **not**
+call the sign-in guard, because Smart IPTV cannot sign in. Every response,
+errors included, sends `Cache-Control: no-store`,
+`X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and
+`X-Robots-Tag: noindex, nofollow`. The identical `404`,
+`{ "error": "feed_not_found", "message": "This TV link does not exist or was revoked." }`,
+answers a malformed, unknown, revoked or replaced token, a deleted profile, an
+owner who is no longer allowed and a missing or mismatched `feed.json`, so a
+response never reveals whether a token was ever valid. `feed_not_ready` is
+returned only after the token has been fully verified. It is a `404` rather
+than a `503` with `Retry-After` because waiting does not help: the link starts
+working after the owner's first successful refresh. If a download fails after
+streaming started, the connection is aborted, so a partial playlist is never
+mistaken for a complete one.
+
+### TV link storage
+
+TV links use the app-data storage account and connection of saved profiles:
+
+| Resource | Name | Contents |
+| --- | --- | --- |
+| Blob in `online-profiles` | `{tenantId}/{objectId}/{profileId}/feed.json` | The profile's link, and the source of truth: `{ "v", "feedId", "token", "tokenHash", "createdAt" }` |
+| Private blob container | `online-feeds` | One index entry per link, `{sha256}.json`, named by the lowercase hex SHA-256 of the token: `{ "v", "tenantId", "objectId", "profileId", "feedId", "createdAt" }`, never the token |
+
+`feed.json` is a separate blob, never part of `profile.json`, and sits under
+the profile's prefix, so deleting the profile deletes it too. It is the only
+place that keeps the token itself, so that the signed-in owner can copy the
+link again later; the same private container already holds the provider URL.
+Index entries and `feed.json` are created with `If-None-Match: *`, and
+`feed.json` is replaced only with an ETag condition.
+
+The API creates the `online-feeds` container (without public access) when a
+link is first created. If creation is not permitted, create it in advance with
+exactly this name. TV links need only **Storage Blob Data Contributor** on the
+app-data account, already granted in
+[App-data storage and roles](#app-data-storage-and-roles); they use no queue
+and need no new role or setting. Do not add a Blob lifecycle rule for
+`online-feeds/`: links never expire, and `OnlineFeedCleanup` removes index
+entries that no longer lead anywhere. As with profiles, blob soft delete or
+versioning would keep deleted `feed.json` copies, including revoked tokens;
+leave both off or keep their retention short.
+
+### TV link lifecycle
+
+- **Create** writes a new index entry, then `feed.json`. When two creates
+  race, one link wins: the other request returns it and deletes its own unused
+  index entry.
+- **Regenerate** writes a new index entry, replaces `feed.json` with an ETag
+  condition (the old link stops working at this moment) and then deletes the
+  old index entry.
+- **Revoke** deletes `feed.json` first (the link stops working at this moment)
+  and then its index entry. Revoke wins against a simultaneous regenerate.
+- **Profile delete** removes the profile record, which ends the link at once,
+  then every blob under the profile prefix, including `feed.json`. A link
+  created or regenerated while its profile is being deleted is removed again.
+- **Cleanup.** The `OnlineFeedCleanup` timer runs hourly, at minute 30. It
+  checks up to 500 index entries older than 2 hours per run and deletes, with
+  an ETag condition, those that cannot be read, whose profile record or
+  `feed.json` is missing or whose `feed.json` now holds another link. It
+  skips blob names that do not follow the index naming, keeps the entries of
+  owners removed from the allowlist and logs only counts. Removing an index
+  entry never affects a working link.
+
+### TV link security
+
+- **Secret link.** The link is a bearer-style secret: anyone who has it can
+  download the playlist, including the provider's stream credentials in its
+  channel URLs, until the link is regenerated or revoked. Keep it as private
+  as the provider URL itself. Its token is 32 bytes (256 bits) from a
+  cryptographic random number generator, encoded as 43 base64url characters,
+  so it cannot be guessed.
+- **Hash index.** Index entries are named by the SHA-256 of the token and
+  never contain it, and a hash cannot be used as a link. The exact token
+  format is checked before any storage access.
+- **Every request is checked again.** A link works only while its index entry
+  exists, its owner is still allowed by `OnlineAuth__TenantId` and
+  `OnlineAuth__AllowedObjectIds`, its profile exists and its `feed.json` holds
+  the same link with a token hash that matches in constant time. Revoke,
+  regenerate, profile delete and allowlist removal therefore take effect on
+  the next request. Adding an owner back to the allowlist restores their
+  links.
+- **Read-only, last good output.** A link only reads the latest successful
+  output. It cannot start a refresh, change a profile or reveal the stored
+  provider URL, and a failed refresh never replaces what it serves.
+- **Not cached or indexed.** `no-store`, `no-referrer` and
+  `noindex, nofollow` keep browsers, proxies and search engines from storing,
+  passing on or listing the link and its playlist.
+- **No CORS change.** Smart IPTV fetches the link directly, as it fetches
+  provider playlists, so the [CORS](#cors-exact-origins-not-authentication)
+  configuration stays as it is. The owner endpoints use only `GET`, `POST` and
+  `DELETE` with the same request headers as saved profiles.
+- **Logs.** Only the signed-in owner receives the token. The token and its
+  hash are never logged; logs contain link and profile IDs, storage status
+  and error codes, exception type names and counts.
+
+### TV link telemetry and logs
+
+A TV link carries its token in the request path, so anything that records full
+request URLs can record the token. The worker prevents this where it can:
+
+- ASP.NET Core in the worker logs every request with its URL at
+  `Information` ("Request starting ..."). Through the worker's logging, such
+  entries can reach the console output that the Functions host captures, the
+  host's logs and Application Insights. `Program.cs` therefore raises the
+  minimum level of `Microsoft.AspNetCore` logs to `Warning`; ASP.NET Core
+  warnings and errors are still logged.
+- The `FeedPathRedaction` telemetry processor replaces the path segment after
+  `/feed/` with `redacted` in request names and URLs, trace and exception
+  messages, custom properties and operation names that the worker sends to
+  Application Insights. Worker telemetry for the regenerate endpoint therefore
+  shows `.../feed/redacted` too. `OutboundUrlRedaction` already reduces
+  outgoing dependencies, including storage calls whose blob names hold token
+  hashes, to `scheme://host[:port]`.
+- The API's own logs never contain a token or hash, and its error responses
+  never contain storage exception messages.
+
+The worker cannot change what the platform records itself. The Functions host
+records every invocation; with Application Insights, its request telemetry
+includes the full URL, and `host.json` keeps requests out of sampling. App
+Service HTTP and web server logs, diagnostic settings that export them, proxies
+in front of the app and Smart IPTV, which keeps the link for your TV, can
+record it too. Treat all of these as holding secrets:
+
+- Restrict who can read the Function App's logs, its Application Insights
+  resource and any Log Analytics workspace or storage that receives its
+  diagnostics, and keep their retention short.
+- Enable App Service HTTP logging, or diagnostic settings that export request
+  URLs, only when needed, and restrict them the same way.
+- Turn on **HTTPS Only** for the Function App, so the link never travels
+  unencrypted, and give Smart IPTV only the `https://` link.
+- Regenerate a link whenever it may have been exposed.
+
+### TV link kill switches
+
+- **One link:** **Revoke link**, or **Regenerate link** to replace it, on its
+  profile. Deleting the profile also ends its link.
+- **All links of one account:** remove the account from
+  `OnlineAuth__AllowedObjectIds`. This also ends its online access.
+- **Every link:** set the Function App application setting
+  `AzureWebJobs.OnlineFeed.Disabled` to `true`. TV links stop working until
+  the setting is removed; nothing is deleted, and owners can still manage
+  their links.
+
+### TV link limitations
+
+- One link per profile, with no expiry, no per-device links and no usage
+  statistics.
+- A link serves the latest successful refresh; refresh the profile when the
+  provider's list changes. Smart IPTV decides when the TV reloads the list.
+- Azure's HTTP response limit of about 230 seconds also applies to very slow
+  TV downloads.
 
 ## Local development
 
@@ -750,15 +997,15 @@ npm.cmd --prefix .\client run dev -- --host=localhost --port=5173 --strictPort
 
 ```powershell
 Set-Location .\api
-func start --port 7071 --functions OnlineSession OnlineImportStart OnlineImportStatus OnlineImportCategories OnlineImportPlaylist OnlineImportDiscard OnlineImportWorker OnlineImportPoison OnlineImportCleanup OnlineProfileList OnlineProfileCreate OnlineProfileGet OnlineProfileCategories OnlineProfileSelect OnlineProfileRename OnlineProfileSource OnlineProfileRefresh OnlineProfileOutput OnlineProfileDelete OnlineProfileRefreshWorker OnlineProfileRefreshPoison OnlineProfileCleanup
+func start --port 7071 --functions OnlineSession OnlineImportStart OnlineImportStatus OnlineImportCategories OnlineImportPlaylist OnlineImportDiscard OnlineImportWorker OnlineImportPoison OnlineImportCleanup OnlineProfileList OnlineProfileCreate OnlineProfileGet OnlineProfileCategories OnlineProfileSelect OnlineProfileRename OnlineProfileSource OnlineProfileRefresh OnlineProfileOutput OnlineProfileDelete OnlineProfileRefreshWorker OnlineProfileRefreshPoison OnlineProfileCleanup OnlineFeedGet OnlineFeedCreate OnlineFeedRegenerate OnlineFeedRevoke OnlineFeed OnlineFeedCleanup
 ```
 
 This list contains every online function. It intentionally leaves out the
 legacy `Upload` and `Download` functions, so their routes are not registered.
 The example `local.settings.json` points both `AzureWebJobsStorage` and
 `OnlinePlaylistStorage` at Azurite (`UseDevelopmentStorage=true`); the API
-creates the `online-imports` and `online-profiles` containers and their queues
-there on first use. The outbound request policy also applies locally: imports
+creates the `online-imports`, `online-profiles` and `online-feeds` containers
+and their queues there on first use. The outbound request policy also applies locally: imports
 and profile refreshes from `localhost`, private-network or emulator addresses
 fail with `blocked_destination`, so use a publicly reachable playlist URL.
 
@@ -844,7 +1091,9 @@ Expected API responses, all with `Cache-Control: no-store`:
 The import endpoints return these guard responses before anything else, and
 then the codes listed in [Import endpoints](#import-endpoints). The saved
 profile endpoints do the same, followed by the codes listed in
-[Profile endpoints](#profile-endpoints).
+[Profile endpoints](#profile-endpoints). The TV link owner endpoints do the
+same, followed by the codes listed in [TV link endpoints](#tv-link-endpoints);
+the TV link itself (`OnlineFeed`) never returns guard responses.
 
 Local regression checks:
 
@@ -896,3 +1145,21 @@ For saved profiles, also verify in that environment:
   prefix and the profile does not reappear.
 - The profile limit, and refreshes near the size and time limits, behave as
   documented on the chosen hosting plan.
+
+For TV links, also verify in that environment:
+
+- A TV link added to Smart IPTV My List loads the profile's playlist, and the
+  TV gets the new playlist after the next successful refresh.
+- `GET` and `HEAD`, with and without `.m3u`, return `200` with the documented
+  headers, and a link to a profile that was never refreshed returns
+  `404 feed_not_ready`.
+- After **Regenerate link**, **Revoke link**, deleting the profile or removing
+  the owner from `OnlineAuth__AllowedObjectIds`, the old link returns the
+  identical `404 feed_not_found`, as does a made-up token.
+- Another allowed account gets 404 `profile_not_found` from the owner
+  endpoints for that profile.
+- Worker logs, traces and dependencies in Application Insights never contain
+  a token. Note where the host's request telemetry and the platform's logs
+  record the full link, and who can read them.
+- Setting `AzureWebJobs.OnlineFeed.Disabled` to `true` stops every link, and
+  removing the setting restores them.

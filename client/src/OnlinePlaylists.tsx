@@ -196,7 +196,7 @@ export default function OnlinePlaylists() {
             className={state.kind === 'error' ? 'online-error' : 'online-status'}
           >{state.message}</p>
           {state.kind === 'verified' && (
-            <p>URL import and saved profiles with one-click refresh are available. TV feed links are not available yet.</p>
+            <p>URL import, saved profiles with one-click refresh and secret TV links for Smart IPTV are available.</p>
           )}
           <div className="online-actions">
             {!auth && state.kind === 'error' ? (

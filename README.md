@@ -8,7 +8,7 @@ Split and manage M3U playlists with a React + Vite frontend on GitHub Pages and 
 - Save favourite categories and reuse them with your next playlist
 - React 19 + TypeScript UI powered by Vite
 - Local file processing, selection, search, favourites and download never require an account
-- Optional Microsoft sign-in with server-verified account access, plus URL import and saved profiles for allowed accounts: the API downloads a provider playlist and returns only the filtered channels you pick, and a saved profile regenerates them with one click (TV feed links are not available yet)
+- Optional Microsoft sign-in with server-verified account access, plus URL import and saved profiles for allowed accounts: the API downloads a provider playlist and returns only the filtered channels you pick, and a saved profile regenerates them with one click and can serve the latest result to Smart IPTV through a secret TV link
 
 ## Repo layout
 
@@ -43,9 +43,15 @@ the playlist again and regenerates the filtered playlist on the server, and
 **Download latest** saves the newest result at any time. A failed refresh keeps
 the last good playlist. The stored URL stays in private storage until you delete
 the profile or change its URL, and is never shown, returned or logged; only its
-host is displayed. TV feed links are not available yet. The legacy
-upload/download functions are not the online feature; keep them disabled in
-standalone deployments.
+host is displayed. The legacy upload/download functions are not the online
+feature; keep them disabled in standalone deployments.
+
+**TV links** give a saved profile a secret, read-only playlist URL for Smart
+IPTV **My List**. Open **TV link** on the profile, create the link and paste it
+once as an external playlist link: from then on the TV loads the profile's
+latest successful refresh without sign-in. Anyone with the link can download
+that playlist, including the provider's stream credentials, so keep it private.
+**Regenerate link** replaces it and **Revoke link** turns it off immediately.
 
 See [Online sign-in, URL import, saved profiles and standalone API setup](docs/online-setup.md)
 for the exact Entra registrations, callbacks, public build variables, server
