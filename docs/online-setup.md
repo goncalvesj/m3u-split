@@ -1457,16 +1457,25 @@ credential for this subject:
 Use issuer `https://token.actions.githubusercontent.com` and audience
 `api://AzureADTokenExchange`. Grant only the permissions required to read
 Function App settings and deploy to that existing app, at the narrowest
-resource scope. Do not use the SPA as the deployment identity. Configure these
-**environment variables** (public IDs/names, no client secret):
+resource scope. Do not use the SPA as the deployment identity.
 
-| Variable | Value |
+Add these values as **environment secrets** of `azure-functions`, not as
+repository secrets. They are IDs and names, not credentials. Anyone can read
+the run logs of a public repository. GitHub masks `secrets` values in these
+logs, but it does not mask `vars` values. Do not add a client secret.
+
+| Secret | Value |
 | --- | --- |
 | `AZURE_DEPLOY_CLIENT_ID` | The OIDC deployment identity's client ID |
 | `AZURE_TENANT_ID` | Its selected directory ID |
 | `AZURE_SUBSCRIPTION_ID` | The explicitly approved subscription ID |
 | `AZURE_RESOURCE_GROUP` | The existing Function App's resource group |
 | `AZURE_FUNCTION_APP_NAME` | The existing Function App's name |
+
+If you push `azure` before you add this environment, GitHub adds it with no
+protection rules. The `deploy` job then stops at its first step, because the
+environment has no secrets. Add the branch rule and the reviewer before you
+add the secrets.
 
 Each action in `deploy-api.yml` uses a full commit SHA, with its version in a
 comment. A tag can move to different code, but a commit SHA cannot. To get
