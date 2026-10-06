@@ -65,12 +65,15 @@ ID in this tenant**. This implementation deliberately does not use `common`,
    client secret or certificate for token validation.
 2. Register the **SPA** application, separately from the API. Record its
    Application (client) ID. Under **Authentication**, add a **Single-page
-   application (SPA)** platform, not a Web platform. Register these exact URIs:
+   application (SPA)** platform, not a Web platform. Register only this exact URI:
 
    | Use | SPA redirect and post-logout URI |
    | --- | --- |
    | Existing GitHub Pages site | `https://goncalvesj.github.io/m3u-split/auth.html` |
-   | Local Vite development | `http://localhost:5173/m3u-split/auth.html` |
+
+   Do not add a `localhost` URI to this production registration. For local
+   development, use a separate SPA registration. See
+   [Development registrations](#development-registrations).
 
    The same callback page handles popup sign-in and sign-out. No separate
    front-channel logout page is configured. Do not enable implicit access-token
@@ -94,6 +97,32 @@ the required delegated `scp`, the SPA `azp`, and the user's allowed `oid`.
 Keep the Function host's clock synchronized. ID tokens, Graph tokens,
 application-only tokens and function keys are not API access tokens.
 
+### Development registrations
+
+Keep local development out of the production SPA registration. Entra ignores
+the port when it compares `localhost` redirect URIs. If the production SPA has
+a `localhost` URI, a local web page on any port can get tokens that the
+production API accepts.
+
+1. Register a second SPA application for development only. Use the settings
+   of step 2, but register only this URI:
+
+   | Use | SPA redirect and post-logout URI |
+   | --- | --- |
+   | Local Vite development and preview | `http://localhost:5173/m3u-split/auth.html` |
+
+   This one URI also works for Vite preview on port 4173. Do not add a second
+   `localhost` URI that has only a different port.
+2. Add the delegated `access_as_user` permission to this SPA, as in step 3.
+3. Put the client ID of this development SPA in `client/.env.local`
+   (`VITE_ENTRA_SPA_CLIENT_ID`) and in `api/local.settings.json`
+   (`OnlineAuth__SpaClientId`).
+
+The production API accepts only tokens that the production SPA gets (the
+`azp` claim). It rejects the tokens of the development SPA. For more
+isolation, you can also use a separate development API registration and a
+separate development Function App.
+
 ## Public Pages build settings
 
 All `VITE_*` values are visible in the deployed JavaScript. They are public
@@ -116,10 +145,11 @@ changing a public variable.
 The callback is derived from the actual page origin and Vite base, not from a
 relative `/api` proxy or an arbitrary environment redirect. The built artifact
 contains a real `auth.html` entry at `/m3u-split/auth.html`; no SPA rewrite or
-Pages 404 routing trick is required. Register another **exact** callback if you
-intentionally use a different development port/origin. For Vite preview on
-port 4173, that means `http://localhost:4173/m3u-split/auth.html` and an
-additional API CORS origin `http://localhost:4173`.
+Pages 404 routing trick is required. Register local callbacks only on the
+development SPA registration. Add local origins only to the CORS setting of
+the local Core Tools host (`Host.CORS` in `local.settings.json`). Do not add
+them to the production Function App. For Vite preview on port 4173, add
+`http://localhost:4173` to `Host.CORS`. Put a comma between the origins.
 
 Never put client secrets, Function keys, storage credentials, provider playlist
 URLs/passwords or deployment credentials in any `VITE_*` variable. The frontend
@@ -131,17 +161,18 @@ request, and does not send an email/identity parameter for authorization.
 
 Use an approved, separately provisioned **Azure Functions v4, .NET 9,
 isolated-worker** Function App. The existing `net9.0` target remains unchanged.
-Use a hosting plan/OS that supports this runtime and keep the supported .NET 9
-runtime patched; reassess its support lifecycle before a later runtime upgrade.
-This is not an Azure Static Web Apps managed API.
+Use the **Flex Consumption** plan, with the settings in
+[Hosting plan and cost guards](#hosting-plan-and-cost-guards). Microsoft
+support for .NET 9 stops on 10 November 2026. Move the API to .NET 10 before
+that date. This is not an Azure Static Web Apps managed API.
 
 Set the following **Function App application settings**, never frontend
 variables. Double underscores are the .NET configuration section separator:
 
 | Server setting | Value |
 | --- | --- |
-| `FUNCTIONS_WORKER_RUNTIME` | `dotnet-isolated` |
-| `FUNCTIONS_EXTENSION_VERSION` | `~4` |
+| `FUNCTIONS_WORKER_RUNTIME` | `dotnet-isolated`. Not on Flex Consumption: see below the table |
+| `FUNCTIONS_EXTENSION_VERSION` | `~4`. Not on Flex Consumption: see below the table |
 | `OnlineAuth__TenantId` | The same tenant GUID as the SPA authority |
 | `OnlineAuth__ApiClientId` | The API Application (client) ID GUID, **not** the `api://...` URI |
 | `OnlineAuth__SpaClientId` | The SPA Application (client) ID GUID; must differ from the API ID |
@@ -151,6 +182,14 @@ variables. Double underscores are the .NET configuration section separator:
 | `OnlinePlaylistStorage__queueServiceUri` | URL import: `https://<APP-DATA-ACCOUNT>.queue.core.windows.net` (see Phase 2) |
 | `AzureWebJobs.Upload.Disabled` | `true` |
 | `AzureWebJobs.Download.Disabled` | `true` |
+
+On Flex Consumption, do not set `FUNCTIONS_WORKER_RUNTIME` or
+`FUNCTIONS_EXTENSION_VERSION`. Set the runtime when you create the app, in
+`functionAppConfig.runtime` (name `dotnet-isolated`, version `9.0`). The
+platform sets the host version. The deployment workflow reads the runtime from
+`functionAppConfig.runtime`, and reads `FUNCTIONS_WORKER_RUNTIME` only on other
+plans. Local Core Tools still reads `FUNCTIONS_WORKER_RUNTIME` from
+`local.settings.json`.
 
 All authentication/account values must be valid. An empty allowlist or any
 invalid entry disables online access; valid entries are not silently accepted
@@ -202,6 +241,10 @@ This implementation does not rely on unsupported `[Authorize]`
 attributes or ASP.NET middleware routing in the isolated worker.
 
 The legacy `Upload`/`Download` triggers retain `AuthorizationLevel.Function`.
+`Download` accepts only the file names that `Upload` makes: a GUID and an
+optional extension of 1 to 16 letters or digits. The maximum file size for
+`Upload` is 100 MiB. The maximum request body for `Download` is 4 MiB, with
+1 to 10,000 categories.
 Keep the disable flags above set in local and deployed environments; they are
 not user-owned authenticated playlist endpoints. Core Tools normally bypasses Function-key authentication and can execute even
 disabled HTTP functions locally. Start the host with the explicit
@@ -216,10 +259,12 @@ or unexpectedly redirect API calls to an HTML login page.
 ## CORS: exact origins, not authentication
 
 In the Function App's **API -> CORS** settings, remove wildcard origins and add
-only origins that are actually needed:
+only the production origin:
 
 - Production: **`https://goncalvesj.github.io`** (no `/m3u-split/` path).
-- Local development against that API, if desired: **`http://localhost:5173`**.
+
+Do not add a `localhost` origin to the production Function App. Local
+development uses the local Core Tools host and its own CORS setting.
 
 Leave **Access-Control-Allow-Credentials disabled**. The Functions host handles
 OPTIONS preflight for the `Authorization` and `Content-Type` request headers and
@@ -230,7 +275,8 @@ change. Do not add a second conflicting ASP.NET CORS implementation or
 a wildcard header inside the function. Platform CORS cannot expose response
 headers such as `Content-Disposition` to the page, so the browser chooses the
 downloaded file name itself.
-For local Core Tools, `local.settings.example.json` sets that one local origin.
+For local Core Tools, `local.settings.example.json` sets the local origin
+`http://localhost:5173` in `Host.CORS`.
 CORS is not an account restriction: direct HTTP clients still need a valid
 access token and an allowed identity.
 
@@ -934,7 +980,9 @@ request URLs can record the token. The worker prevents this where it can:
 
 The worker cannot change what the platform records itself. The Functions host
 records every invocation; with Application Insights, its request telemetry
-includes the full URL, and `host.json` keeps requests out of sampling. App
+includes the full URL. Adaptive sampling in `host.json` also applies to
+requests. At the usual low traffic, Application Insights keeps all requests.
+If many requests arrive, it keeps only some of them and records fewer URLs. App
 Service HTTP and web server logs, diagnostic settings that export them, proxies
 in front of the app and Smart IPTV, which keeps the link for your TV, can
 record it too. Treat all of these as holding secrets:
@@ -984,8 +1032,11 @@ Copy-Item .\api\local.settings.example.json .\api\local.settings.json
 ```
 
 Both local configuration files are ignored; `local.settings.json` is excluded
-from publish output. Populate them with the real public registration IDs,
-scope and allowed account IDs. In `.env.local`, use
+from publish output. Put the public registration IDs, the scope and the
+allowed account IDs in them. For `VITE_ENTRA_SPA_CLIENT_ID` and
+`OnlineAuth__SpaClientId`, use the client ID of the development SPA, not the
+production SPA. See [Development registrations](#development-registrations).
+In `.env.local`, use
 `VITE_ONLINE_API_BASE_URL=http://localhost:7071/api/`. Leave online values blank
 if you only want the local-file workflow.
 
@@ -1014,25 +1065,119 @@ untouched for compatibility, but the new online client never uses it. It calls
 the separately configured Functions origin, exercising the same cross-origin
 authentication boundary as production.
 
+## Hosting plan and cost guards
+
+The `OnlineFeed` function accepts requests without sign-in. A flood of
+requests to it can increase the cost of the Function App. Use these settings
+to keep the cost low and to get a warning quickly.
+
+### Flex Consumption settings
+
+Use the **Flex Consumption** plan (Linux) for the Function App. Use these
+values:
+
+| Setting | Value | Reason |
+| --- | --- | --- |
+| Instance memory (`instanceMemoryMB`) | `512` | The smallest size. If a large import fails, use `2048`. |
+| Maximum instance count (`maximumInstanceCount`) | `1` | The lowest value. The default is 100 and the highest value is 1,000. |
+| Always ready instances | `0` | The default. An always ready instance costs money all the time. |
+| HTTP concurrency for each instance | The default | For 512 MB, the default is 4 requests at the same time. |
+
+The maximum instance count applies to each scale group, not to the full app.
+All HTTP functions are one group. Each queue function and each timer function
+is a separate group. If too many requests arrive, a low maximum can cause
+delays or rejected requests. If the web app is too slow, set the maximum to 2.
+
+### Cost alerts and caps
+
+Make these items in the subscription or in the resource group of the app:
+
+1. Make an action group that sends an email to you.
+2. Make a monthly budget of 5 USD on the resource group. Add alerts at 50%,
+   80% and 100% of the actual cost.
+3. Add budget alerts at 100% of the forecast cost and at 400% of the actual
+   cost.
+4. Make a cost anomaly alert on the subscription.
+5. Make a metric alert on the Function App for `OnDemandFunctionExecutionCount`.
+   Use the total for 1 hour, a threshold of 500 and a check every 5 minutes.
+   Send the alert to the action group.
+6. Use a Log Analytics workspace with the `PerGB2018` pricing tier, a
+   retention of 30 days and a daily cap of 0.15 GB.
+7. Use workspace-based Application Insights with a daily cap of 0.15 GB.
+8. Give read access to the telemetry only to the owner. The request URLs
+   contain the TV link tokens.
+
+> **WARNING:** Do not use the budget alerts as the only flood guard. A budget
+> alert can arrive approximately 8 to 49 hours after the cost occurs. A budget
+> does not stop resources. The metric alert arrives in minutes.
+
+> **CAUTION:** When the workspace or Application Insights gets to its daily
+> cap, it stops data collection until the next daily reset. Until then, it
+> gets no new security records, and log alerts get no new data.
+
+A rate limit layer, for example Azure API Management or Azure Front Door with a
+web application firewall, can stop a flood before it gets to the app. Each of
+them adds cost, so this setup does not use them.
+
+### If a flood occurs
+
+1. On the profile, open **TV link**. Select **Regenerate link** or
+   **Revoke link**. Then confirm the action. If you regenerate the link, put
+   the new link in Smart IPTV **My List**.
+2. If the flood continues, set `AzureWebJobs.OnlineFeed.Disabled` to `true`.
+   This change restarts the app. See
+   [TV link kill switches](#tv-link-kill-switches).
+3. When the flood stops, remove the setting.
+
+### Runtime support
+
+Microsoft support for .NET 9 stops on 10 November 2026. Before that date, do
+these steps:
+
+1. Change the target framework of `api` and `api.tests` to `net10.0`. Use
+   package versions that support .NET 10.
+2. Change `dotnet-version` in `deploy-api.yml` to `10.0.x`.
+3. Change the runtime version in `functionAppConfig.runtime` to `10.0`.
+4. Push the change to `azure` and approve the deployment.
+
 ## Independent deployment
 
 `.github/workflows/deploy-pages.yml` continues to deploy only `client/dist` to
 Pages, with optional public online configuration. The old
 `azure-static-web-apps-purple-forest-061720b03.yml` file is retained unchanged;
-it is already disabled in GitHub and should stay disabled.
+it is already disabled in GitHub and should stay disabled. If you do not use
+that Static Web App, delete its workflow file, the repository secret
+`AZURE_STATIC_WEB_APPS_API_TOKEN_PURPLE_FOREST_061720B03` and the Static Web
+App resource.
 
-`.github/workflows/deploy-api.yml` builds the API on relevant pushes and
-pull requests. **Only manual `workflow_dispatch` deploys** an API package; it
-does not create resources or update server settings. It checks for explicit
-deployment IDs, populated server auth settings, a URL-import storage connection
-(`OnlinePlaylistStorage` or both identity-based service URIs) and disabled
-legacy functions before deploying. The package includes the generated hidden
-`.azurefunctions` directory and `host.json`, but never local configuration.
+The `azure` branch is the source of the Azure deployment. The `master` branch
+stays the source of GitHub Pages. `.github/workflows/deploy-api.yml` builds the
+API for each push and pull request to `azure` that changes the API or the
+workflow. A push to `azure` also deploys the package, but only after a
+reviewer approves the deployment in the `azure-functions` environment. A pull
+request never deploys.
 
-After approval and provisioning, create the **`azure-functions` GitHub
-environment**, restrict it to the intended branch (normally `master`), and add
-required reviewers if available. Configure a separate deployment identity with
-GitHub OIDC federation for:
+The workflow does not add Azure resources or change server settings. Before
+it deploys, it checks these items:
+
+- The deployment IDs
+- The server auth settings
+- A URL import storage connection (`OnlinePlaylistStorage` or both
+  identity-based service URIs)
+- The `dotnet-isolated` runtime (`functionAppConfig.runtime` on Flex
+  Consumption, or `FUNCTIONS_WORKER_RUNTIME` on other plans)
+- The disabled legacy functions
+
+The package includes the generated hidden `.azurefunctions` directory and
+`host.json`, but never local configuration. GitHub shows **Run workflow** only
+for a workflow file on the default branch (`master`). This file is not on
+`master`, so use a push to `azure` to deploy.
+
+When the Azure resources are ready, add the **`azure-functions`** environment
+in GitHub. Set its deployment branch rule to the `azure` branch only. Add
+yourself as a required reviewer. Required reviewers are free for public
+repositories. Use a separate deployment identity, with a GitHub OIDC federated
+credential for this subject:
 
 `repo:goncalvesj/m3u-split:environment:azure-functions`
 
@@ -1050,10 +1195,33 @@ resource scope. Do not use the SPA as the deployment identity. Configure these
 | `AZURE_RESOURCE_GROUP` | The existing Function App's resource group |
 | `AZURE_FUNCTION_APP_NAME` | The existing Function App's name |
 
-After setting server configuration/CORS, manually run **Standalone Functions
-API** on the intended branch. Deploy Pages separately after setting its public
-variables. There is no automatic cross-host deployment or paid provisioning.
-No workflow has been run as part of the local code implementation.
+Each action in `deploy-api.yml` uses a full commit SHA, with its version in a
+comment. A tag can move to different code, but a commit SHA cannot. To get
+pull requests that move these pins to new versions, add this
+`.github/dependabot.yml` file to `master`. Dependabot reads its configuration
+only from the default branch.
+
+```yaml
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: azure
+    schedule:
+      interval: weekly
+```
+
+Also pin the actions in the workflows on `master` to commit SHAs. Give each
+workflow only the permissions that it uses.
+
+After you set the server configuration and CORS, push the `azure` branch. Then
+approve the deployment. Deploy Pages separately after you set its public
+variables. No workflow deploys to both hosts, and no workflow makes paid
+resources. No workflow ran for these local code changes.
 
 ## Authentication behavior and verification
 

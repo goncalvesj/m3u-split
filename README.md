@@ -55,8 +55,10 @@ that playlist, including the provider's stream credentials, so keep it private.
 
 See [Online sign-in, URL import, saved profiles and standalone API setup](docs/online-setup.md)
 for the exact Entra registrations, callbacks, public build variables, server
-settings, playlist storage and roles, CORS and the API workflow, which builds on
-relevant pushes/PRs and deploys only by manual dispatch. No live resources or
+settings, playlist storage and roles, CORS, the hosting plan and cost guards,
+and the API workflow. The workflow builds the API for pushes and pull requests
+to the `azure` branch. It deploys a push to `azure` after a reviewer approves
+the deployment. No live resources or
 identities are configured in this repository.
 Pages remains the frontend host; the already-disabled SWA workflow is retained
 unchanged.
