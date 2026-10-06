@@ -362,7 +362,15 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 .env
-__blobstorage__/8310eabb-3f7c-4f79-a982-8d2a48beab40
-__blobstorage__/c10c646f-f83c-4e34-a0ed-52e75f9c0372
-__azurite_db_blob_extent__.json
-__azurite_db_blob__.json
+
+# Azurite data. It can contain full playlists with provider credentials.
+__blobstorage__/
+__queuestorage__/
+__tablestorage__/
+__azurite_db_*.json
+AzuriteConfig
+
+# Playlists can contain provider credentials.
+# Use "git add -f" only for a test playlist with fake credentials.
+*.m3u
+*.m3u8

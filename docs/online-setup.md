@@ -1279,6 +1279,16 @@ Core Tools v4 and, for the example storage settings, an already running Azurite
 emulator with its Blob and Queue services. Install/start only the tools and
 services you have approved.
 
+Azurite keeps the imported playlists, the saved profiles and their outputs.
+These files contain the provider credentials. Keep the Azurite data outside
+the repository. For example, start Azurite with
+`azurite --location "$env:LOCALAPPDATA\Azurite"`. In VS Code, set
+`azurite.location` to a folder outside the repository.
+
+The root `.gitignore` also ignores the Azurite data and all `*.m3u` and
+`*.m3u8` files. Before each commit, examine the output of `git status --short`.
+Stage the files by name.
+
 From the repository root in PowerShell:
 
 ```powershell
