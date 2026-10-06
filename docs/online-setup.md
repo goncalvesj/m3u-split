@@ -1483,7 +1483,8 @@ workflow only the permissions that it uses.
 
 After you set the server configuration and CORS, push the `azure` branch.
 Then approve the API deployment.
-Deploy the App Service UI separately with the commands above.
+Deploy the App Service UI separately with the commands in
+[Build and deploy again](#build-and-deploy-again).
 Deploy Pages separately if you use it.
 Each host uses its own public build variables.
 Rebuild the selected UI after the API deployment.
