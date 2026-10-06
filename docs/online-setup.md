@@ -1413,12 +1413,30 @@ these steps:
 ## Independent deployment
 
 `.github/workflows/deploy-pages.yml` continues to deploy only `client/dist` to
-Pages, with optional public online configuration. The old
-`azure-static-web-apps-purple-forest-061720b03.yml` file is retained unchanged;
-it is already disabled in GitHub and should stay disabled. If you do not use
-that Static Web App, delete its workflow file, the repository secret
-`AZURE_STATIC_WEB_APPS_API_TOKEN_PURPLE_FOREST_061720B03` and the Static Web
-App resource.
+Pages, with optional public online configuration.
+
+The `azure` code cannot run as a Static Web Apps managed API. For this reason,
+the `azure` branch does not have the old
+`azure-static-web-apps-purple-forest-061720b03.yml` workflow. For a pull
+request, GitHub uses the workflows of the merge commit. A pull request from
+`azure` to `master` does not deploy a preview to the old Static Web App.
+
+On `master`, this workflow is still active. Each push to `master` that changes
+`client/`, `api/` or the workflow deploys to the old Static Web App. This
+deployment includes the legacy `Upload` and `Download` functions. A pull
+request to `master` can also deploy a public preview environment. After a
+merge of `azure` into `master`, no workflow updates the old Static Web App.
+
+When you no longer use the old Static Web App, do these steps:
+
+1. Remove the workflow file from `master`, or disable the workflow in GitHub.
+2. Delete the Static Web App resource. This step also deletes its preview
+   environments.
+3. Delete the repository secret
+   `AZURE_STATIC_WEB_APPS_API_TOKEN_PURPLE_FOREST_061720B03`.
+4. If the old app used blob storage, delete its `uploads` container. The
+   legacy `Upload` function kept each playlist there, with the provider
+   credentials.
 
 The `azure` branch is the source of the Azure deployment. The `master` branch
 stays the source of GitHub Pages. `.github/workflows/deploy-api.yml` builds the

@@ -68,7 +68,8 @@ reviewer approves the deployment.
 The Azure UI uses App Service, but the API has no live deployment.
 Entra registrations and API CORS are future tasks.
 GitHub Pages keeps `master` as its source.
-The disabled SWA workflow stays unchanged.
+The `azure` branch does not deploy to the old Static Web App.
+Refer to [Independent deployment](docs/online-setup.md#independent-deployment).
 
 ## Category favourites
 
