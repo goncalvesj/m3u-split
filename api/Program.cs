@@ -10,6 +10,11 @@ var builder = FunctionsApplication.CreateBuilder(args);
 
 builder.ConfigureFunctionsWebApplication();
 
+// Rate limits run before every HTTP function (see docs/online-setup.md). The middleware must come after
+// ConfigureFunctionsWebApplication, which provides the HTTP context and sends the 429 or 503 result.
+builder.Services.AddSingleton<OnlineRateLimiter>();
+builder.UseMiddleware<OnlineRateLimitMiddleware>();
+
 builder.Services.AddSingleton<OnlineAccess>();
 
 // URL import: storage credentials follow the Functions connection conventions (see docs/online-setup.md).

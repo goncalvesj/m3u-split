@@ -18,7 +18,8 @@ public sealed class OnlineFeedResponse(string token, DateTimeOffset createdAt)
 /// one of the caller's profiles; <c>feed/{token}</c> serves that profile's latest successful output to
 /// anyone holding the link, without sign-in.
 /// </summary>
-public sealed class OnlineFeedFunctions(OnlineAccess access, OnlineFeedService feeds, ILogger<OnlineFeedFunctions> logger)
+public sealed class OnlineFeedFunctions(
+    OnlineAccess access, OnlineFeedService feeds, OnlineRateLimiter limiter, ILogger<OnlineFeedFunctions> logger)
 {
     [Function("OnlineFeedGet")]
     public async Task<IActionResult> Get(
@@ -160,7 +161,9 @@ public sealed class OnlineFeedFunctions(OnlineAccess access, OnlineFeedService f
     /// The TV link itself: no sign-in, read-only, GET or HEAD, with an optional ".m3u" suffix. Every
     /// invalid link (malformed, unknown, revoked, replaced, deleted profile, owner no longer allowed) gets
     /// the same 404. A valid link of a profile that has never been refreshed successfully gets 404
-    /// feed_not_ready. Neither the token nor its hash is ever logged.
+    /// feed_not_ready. GET requests of a valid link also count against its hourly download limit, and
+    /// <see cref="OnlineRateLimitMiddleware"/> applies the client limit of TV links before this function
+    /// runs; both answer 429 rate_limited. Neither the token nor its hash is ever logged.
     /// </summary>
     [Function("OnlineFeed")]
     public async Task<IActionResult> Feed(
@@ -179,6 +182,10 @@ public sealed class OnlineFeedFunctions(OnlineAccess access, OnlineFeedService f
         {
             if (await feeds.ResolveAsync(value, cancellationToken) is not { } target)
                 return LinkNotFound();
+            // Only working links reach this limit, so it cannot show whether an unknown token exists.
+            if (!HttpMethods.IsHead(request.Method) &&
+                limiter.CheckFeedDownload(request.HttpContext.Response, value) is { } limited)
+                return limited;
 
             output = await feeds.OpenOutputAsync(target.Owner, target.ProfileId, cancellationToken);
             if (output is null)

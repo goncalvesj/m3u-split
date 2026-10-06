@@ -28,6 +28,17 @@ jobs:
           dotnet-version: '9.0.x'
       - name: Publish API package
         run: dotnet publish api/api.csproj --configuration Release --output function-api
+      - name: Require only the online functions in the package
+        shell: pwsh
+        run: |
+          $functions = @(Get-Content function-api/functions.metadata -Raw | ConvertFrom-Json)
+          if ($functions.Count -eq 0) { throw 'The package has no function metadata.' }
+          foreach ($function in $functions) {
+            if ($function.name -in @('Upload', 'Download')) { throw "The package contains the removed legacy function $($function.name)." }
+            foreach ($binding in @($function.bindings | Where-Object { $_.type -eq 'httpTrigger' })) {
+              if ($binding.route -notmatch '^(online|feed)/') { throw "The HTTP function $($function.name) is not an online or TV link route." }
+            }
+          }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/azure'
         with:
@@ -70,7 +81,7 @@ jobs:
           client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Require configured auth, import storage and disabled legacy endpoints
+      - name: Require configured auth and import storage
         shell: pwsh
         run: |
           $json = az functionapp config appsettings list --name $env:AZURE_FUNCTION_APP_NAME --resource-group $env:AZURE_RESOURCE_GROUP --output json
@@ -89,9 +100,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Cannot read the Function App.' }
           if ([string]::IsNullOrWhiteSpace($runtime)) { $runtime = $settings['FUNCTIONS_WORKER_RUNTIME'] }
           if ($runtime -ne 'dotnet-isolated') { throw 'Expected the dotnet-isolated worker.' }
-          foreach ($name in @('AzureWebJobs.Upload.Disabled', 'AzureWebJobs.Download.Disabled')) {
-            if ($settings[$name] -ne 'true') { throw "The standalone API requires $name=true" }
-          }
       - name: Deploy only the Function App
         uses: Azure/functions-action@c5060b3b8bb1ebbcb531abd00c822ecbaa8ea656 # v1.5.7
         with:

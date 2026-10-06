@@ -43,8 +43,8 @@ the playlist again and regenerates the filtered playlist on the server, and
 **Download latest** saves the newest result at any time. A failed refresh keeps
 the last good playlist. The stored URL stays in private storage until you delete
 the profile or change its URL, and is never shown, returned or logged; only its
-host is displayed. The legacy upload/download functions are not the online
-feature; keep them disabled in standalone deployments.
+host is displayed. The API does not have the legacy upload and download
+functions.
 
 **TV links** give a saved profile a secret, read-only playlist URL for Smart
 IPTV **My List**. Open **TV link** on the profile, create the link and paste it
@@ -52,13 +52,15 @@ once as an external playlist link: from then on the TV loads the profile's
 latest successful refresh without sign-in. Anyone with the link can download
 that playlist, including the provider's stream credentials, so keep it private.
 **Regenerate link** replaces it and **Revoke link** turns it off immediately.
+The API limits the requests of each client and the downloads of each TV link.
+The API sends HTTP 429 for each request above a limit.
 
 See [Online sign-in, URL import, saved profiles and standalone API setup](docs/online-setup.md)
 for the exact Entra registrations, callbacks, public build variables, server
-settings, playlist storage and roles, CORS, the hosting plan and cost guards,
-and the API workflow. The workflow builds the API for pushes and pull requests
-to the `azure` branch. It deploys a push to `azure` after a reviewer approves
-the deployment. No live resources or
+settings, rate limits, playlist storage and roles, CORS, the hosting plan and
+cost guards, and the API workflow. The workflow builds the API for pushes and
+pull requests to the `azure` branch. It deploys a push to `azure` after a
+reviewer approves the deployment. No live resources or
 identities are configured in this repository.
 Pages remains the frontend host; the already-disabled SWA workflow is retained
 unchanged.

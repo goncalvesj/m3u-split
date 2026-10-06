@@ -47,6 +47,10 @@ export function describeFeedFailure(code: string): string {
       return 'The online API could not check your sign-in right now. Try again in a moment.'
     case 'online_not_configured':
       return 'Online access is not configured on the server. Local files still work.'
+    case 'rate_limited':
+      return 'The online API received too many requests. Wait one minute and try again.'
+    case 'rate_limits_not_configured':
+      return 'The rate limits of the online API are not configured correctly on the server. Local files still work.'
     case 'server_error':
       return 'The online API had a problem. Try again in a moment.'
     case 'busy':

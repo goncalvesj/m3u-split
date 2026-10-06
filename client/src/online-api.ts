@@ -41,6 +41,9 @@ export async function fetchOnlineSession(
     if (response.status === 403) {
       throw new OnlineApiError('forbidden', 'Microsoft sign-in succeeded, but this account or application is not permitted to use online playlists. Ask the owner to check the allowed account and API permission.')
     }
+    if (response.status === 429) {
+      throw new OnlineApiError('unavailable', 'The online API received too many requests. Wait one minute and try again.')
+    }
     if (!response.ok) {
       throw new OnlineApiError('unavailable', 'The online API is unavailable or not configured. Online access has not been verified.')
     }

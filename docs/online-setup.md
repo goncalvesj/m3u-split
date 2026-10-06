@@ -34,6 +34,10 @@ Each saved profile can have one permanent, read-only link that Smart IPTV
 successful playlist, and its owner can copy, regenerate or revoke it while
 signed in.
 
+The API limits the requests of each client address and of each instance. It
+also limits the downloads of each TV link. Refer to
+[Rate limits and cost protection](#rate-limits-and-cost-protection).
+
 The frontend stays at **https://goncalvesj.github.io/m3u-split/**, with Vite's
 existing `/m3u-split/` base. Nothing installs or replaces a service worker or PWA
 manifest. An already loaded app can continue processing local files offline;
@@ -180,8 +184,6 @@ variables. Double underscores are the .NET configuration section separator:
 | `OnlineAuth__AllowedObjectIds` | One or more user Object ID GUIDs in that tenant, comma-separated |
 | `OnlinePlaylistStorage__blobServiceUri` | URL import: `https://<APP-DATA-ACCOUNT>.blob.core.windows.net` (see Phase 2) |
 | `OnlinePlaylistStorage__queueServiceUri` | URL import: `https://<APP-DATA-ACCOUNT>.queue.core.windows.net` (see Phase 2) |
-| `AzureWebJobs.Upload.Disabled` | `true` |
-| `AzureWebJobs.Download.Disabled` | `true` |
 
 On Flex Consumption, do not set `FUNCTIONS_WORKER_RUNTIME` or
 `FUNCTIONS_EXTENSION_VERSION`. Set the runtime when you create the app, in
@@ -215,6 +217,11 @@ invalid, the TV link endpoints answer `503 feeds_not_configured`. Setting
 `AzureWebJobs.OnlineFeed.Disabled` to `true` turns every TV link off; see
 [TV link kill switches](#tv-link-kill-switches).
 
+All HTTP endpoints read the optional `OnlineRateLimits__*` settings. Refer to
+[Rate limits and cost protection](#rate-limits-and-cost-protection). If one of
+these settings is not valid, all HTTP endpoints send
+`503 rate_limits_not_configured`. This includes `online/session`.
+
 The Functions host also needs its normal **host storage** configuration
 (`AzureWebJobsStorage`, or the hosting plan's supported identity-based
 `AzureWebJobsStorage__...` configuration with the required storage roles).
@@ -223,9 +230,10 @@ keep it only in server settings/Key Vault. Follow the selected plan's normal
 content/deployment-storage requirements. Host storage is infrastructure, not
 playlist storage: URL imports use the separate `OnlinePlaylistStorage`
 connection described in Phase 2, never `AzureWebJobsStorage`. The hourly import,
-profile and TV link cleanup timers use host storage only for the host's normal timer lock. Existing
-`UseBlobStorage`, `StorageConnectionString` and `FilePath` settings belong to
-disabled legacy functions and are not needed by the online functions.
+profile and TV link cleanup timers use host storage only for the host's normal timer lock. The API
+does not use the `UseBlobStorage`, `StorageConnectionString` and `FilePath`
+settings of the removed legacy functions. Remove these settings from the
+Function App.
 
 The session function uses `AuthorizationLevel.Anonymous` **at the Function-key
 layer only** so a SPA need not embed a shared Function key. `OnlineSession.Run`
@@ -240,16 +248,15 @@ secret token in its URL instead; see [TV link security](#tv-link-security).
 This implementation does not rely on unsupported `[Authorize]`
 attributes or ASP.NET middleware routing in the isolated worker.
 
-The legacy `Upload`/`Download` triggers retain `AuthorizationLevel.Function`.
-`Download` accepts only the file names that `Upload` makes: a GUID and an
-optional extension of 1 to 16 letters or digits. The maximum file size for
-`Upload` is 100 MiB. The maximum request body for `Download` is 4 MiB, with
-1 to 10,000 categories.
-Keep the disable flags above set in local and deployed environments; they are
-not user-owned authenticated playlist endpoints. Core Tools normally bypasses Function-key authentication and can execute even
-disabled HTTP functions locally. Start the host with the explicit
-`--functions` list shown below so legacy routes are not registered at all. In Azure, disabled endpoints are inaccessible without the privileged
-host master key; never give that key to the SPA.
+The API does not have the legacy `Upload` and `Download` functions. The `verify`
+job of `deploy-api.yml` examines the package. The job stops if the package has
+a function with one of these names. The job also stops if an HTTP route is not
+in `online/` or `feed/`. After you deploy this package, the Function App does
+not have the legacy endpoints.
+
+The `AzureWebJobs.Upload.Disabled` and `AzureWebJobs.Download.Disabled`
+settings have no effect now. You can remove them. Never give a Function key or
+the host master key to the SPA.
 
 App Service Authentication/Easy Auth is not required: the application validates
 the bearer token itself. If a platform authentication layer is added later,
@@ -350,8 +357,10 @@ server. Only the canonical lowercase form returned by the API is accepted.
 | 404 | `import_not_found` | Unknown, malformed, discarded or **another user's** import ID |
 | 409 | `import_not_ready` | Categories or playlist requested before the import is `ready` |
 | 410 | `import_expired` | The retention time has passed; the import is deleted |
+| 429 | `rate_limited` | Too many requests from this client address, or from all clients on this instance. Refer to [Rate limits and cost protection](#rate-limits-and-cost-protection) |
 | 503 | `import_not_configured` | Storage connection or `OnlineImport__*` settings missing or invalid |
 | 503 | `import_unavailable` | Storage temporarily unavailable; retry |
+| 503 | `rate_limits_not_configured` | An `OnlineRateLimits__*` setting is not valid |
 
 A `failed` import reports one of these codes:
 
@@ -453,6 +462,9 @@ documentation for those.
   import as `failed` at once. A redelivered message for an import that had
   already started ends it as `import_interrupted` instead of downloading it
   again.
+- **Rate limits.** The API limits the requests of each client address and of
+  each instance. Refer to
+  [Rate limits and cost protection](#rate-limits-and-cost-protection).
 
 As an optional backstop that works even while the Function App is stopped, add
 a Blob lifecycle management rule to the app-data account. Keep
@@ -638,8 +650,10 @@ lowercase form returned by the API is accepted.
 | 409 | `profile_limit_reached` | Create: the user already has `OnlineProfiles__MaxProfilesPerUser` profiles |
 | 409 | `profile_not_indexed` | Categories read or saved before the first successful indexing |
 | 409 | `refresh_in_progress` | Categories or URL changed while a refresh is queued or running |
+| 429 | `rate_limited` | As for URL import |
 | 503 | `profiles_not_configured` | Storage connection, `OnlineImport__*` or `OnlineProfiles__*` settings missing or invalid |
 | 503 | `profiles_unavailable` | Storage temporarily unavailable; retry |
+| 503 | `rate_limits_not_configured` | As for URL import |
 
 A `failed` refresh reports the same download and playlist codes as a failed
 import (from `invalid_url` to `too_many_categories`; see
@@ -846,8 +860,10 @@ from the token and its API base URL.
 | 401, 403, 503 | Guard codes | Exactly as for `GET /api/online/session` |
 | 404 | `profile_not_found` | Unknown, malformed, deleted or **another user's** profile ID |
 | 404 | `feed_not_found` | Get or regenerate: the profile has no link. Regenerate never creates one, so a stale page cannot bring back a revoked link |
+| 429 | `rate_limited` | As for URL import |
 | 503 | `feeds_not_configured` | Saved profiles, `OnlineAuth__*` or the storage connection missing or invalid |
 | 503 | `feeds_unavailable` | Storage temporarily unavailable, or too many simultaneous changes to the same link; retry |
+| 503 | `rate_limits_not_configured` | As for URL import |
 
 The link itself is served by `OnlineFeed`:
 
@@ -859,8 +875,10 @@ The link itself is served by `OnlineFeed`:
 | --- | --- | --- |
 | 404 | `feed_not_found` | The link does not work. Status, body and headers are identical whatever the reason |
 | 404 | `feed_not_ready` | The link is valid, but its profile has no successful refresh yet |
+| 429 | `rate_limited` | Too many TV link requests from this client address in one minute, too many requests on this instance, or too many `GET` downloads of this link in one hour. Refer to [Rate limits and cost protection](#rate-limits-and-cost-protection) |
 | 503 | `feeds_not_configured` | As for the owner endpoints |
 | 503 | `feeds_unavailable` | Storage temporarily unavailable; retry. No details are returned |
+| 503 | `rate_limits_not_configured` | As for URL import |
 
 `OnlineFeed` uses `AuthorizationLevel.Anonymous` and deliberately does **not**
 call the sign-in guard, because Smart IPTV cannot sign in. Every response,
@@ -981,8 +999,9 @@ request URLs can record the token. The worker prevents this where it can:
 The worker cannot change what the platform records itself. The Functions host
 records every invocation; with Application Insights, its request telemetry
 includes the full URL. Adaptive sampling in `host.json` also applies to
-requests. At the usual low traffic, Application Insights keeps all requests.
-If many requests arrive, it keeps only some of them and records fewer URLs. App
+requests, to limit the telemetry cost of a flood. At the usual low traffic,
+Application Insights keeps all requests. If many requests arrive, it keeps
+only some of them. Each record that it keeps can contain the full link. App
 Service HTTP and web server logs, diagnostic settings that export them, proxies
 in front of the app and Smart IPTV, which keeps the link for your TV, can
 record it too. Treat all of these as holding secrets:
@@ -1015,6 +1034,116 @@ record it too. Treat all of these as holding secrets:
   provider's list changes. Smart IPTV decides when the TV reloads the list.
 - Azure's HTTP response limit of about 230 seconds also applies to very slow
   TV downloads.
+
+## Rate limits and cost protection
+
+The API does not use Azure API Management or Azure Front Door. The worker
+middleware `OnlineRateLimitMiddleware` limits the HTTP requests instead. It
+uses the .NET `System.Threading.RateLimiting` limiters, with fixed windows and
+no queue. The middleware examines each HTTP request before the function
+starts. The queue workers and the timers do not have these limits.
+
+| Setting | Default | Range | The API counts |
+| --- | --- | --- | --- |
+| `OnlineRateLimits__ApiRequestsPerMinute` | `300` | 10-6000 | The requests from 1 client address to the `online/*` endpoints in 1 minute |
+| `OnlineRateLimits__FeedRequestsPerMinute` | `30` | 1-600 | The `GET` and `HEAD` requests from 1 client address to all TV links in 1 minute |
+| `OnlineRateLimits__FeedDownloadsPerHour` | `20` | 1-1000 | The `GET` requests to 1 TV link in 1 hour, after the API verifies the token |
+| `OnlineRateLimits__InstanceRequestsPerMinute` | `1200` | 60-60000 | All HTTP requests on 1 instance in 1 minute |
+
+An empty setting uses the default. If a value is not a whole number in its
+range, all HTTP endpoints send `503 rate_limits_not_configured`. The API then
+logs the error `All HTTP endpoints are disabled: ...` with the name of the
+setting.
+
+### How the API applies the limits
+
+For each HTTP request, the middleware does these checks in this order:
+
+1. It examines the instance limit, but it does not count the request yet.
+2. It counts the request against the limit of the client address.
+3. It counts the request against the instance limit.
+
+A request above the client limit or the instance limit gets a `429` response
+immediately. The function does not start. The API does not examine the token,
+read a blob or download a playlist for this request. A client above its own
+limit does not use the budget of the instance.
+
+The counters are in the memory of each instance. Each instance has its own
+counters, and a restart sets them to zero. In 1 minute, the API accepts a
+maximum of the instance limit multiplied by the number of instances.
+
+The `OnlineFeed` function examines the download limit of a TV link after it
+verifies the token. A request with a token that is not valid does not use the
+download limit of a link. A `HEAD` request does not count, but a
+`404 feed_not_ready` response counts. The key of this limit is a hash of the
+token. Each regenerated link gets a new limit immediately.
+
+A person with a TV link can use all downloads of the link in 1 hour. The TV
+then gets `429` until the window ends. To stop this, regenerate the link. Then
+give the new link to the TV.
+
+A `429` response has `Cache-Control: no-store`, a `Retry-After` header and this
+body: `{ "error": "rate_limited", "message": "Too many requests. Try again later." }`.
+`Retry-After` gives the length of the window in seconds. This value is `60`,
+or `3600` for the download limit of a TV link. A TV link response also keeps
+the TV link headers. The app tells the user to wait 1 minute and try again.
+
+### Client address
+
+The client address is the connection address that the Functions host gives to
+the worker. The API does not read `X-Forwarded-For` or other request headers,
+because a client can set these headers. An IPv4-mapped IPv6 address counts as
+its IPv4 address. An IPv6 address counts as its /64 prefix, because 1 client
+can use many addresses in its /64 prefix. A network with NAT, for example a
+home network, has 1 client address for all of its devices.
+
+On Flex Consumption, the host can give the worker an address of the Azure
+infrastructure instead of the address of the client. Then all clients on an
+instance share 1 client limit. A client that floods can then block the other
+users. The instance limit continues to limit the cost.
+
+To make sure that each client has its own limit, do this test after each
+deployment. The test is correct only when the app has 1 instance.
+
+1. Do not use TV links from your network for 2 minutes.
+2. Send 31 requests to a TV link that does not exist. Send them from your
+   network in less than 1 minute. For example:
+
+   ```powershell
+   1..31 | ForEach-Object { curl.exe -s -o NUL -w "%{http_code}`n" "https://<FUNCTION-APP-HOST>/api/feed/link-that-does-not-exist" }
+   ```
+
+3. Make sure that the first 30 requests get `404`.
+4. Make sure that the last request gets `429`.
+5. Immediately send 1 request from a different network, for example a phone on
+   mobile data.
+6. Make sure that this request gets `404`.
+
+If the request in step 5 gets `429`, all clients share 1 client address. Then
+keep the maximum instance count at 1 or 2, because each instance has its own
+counters.
+
+### Cost controls in Azure
+
+The limits in the worker protect each instance. They do not stop a large flood
+from many addresses. A flood can use all of the instance limit. Then the other
+users also get `429` until the flood stops. Each rejected request also starts a
+short function execution, which has a small cost.
+
+Use the settings and the alerts in
+[Hosting plan and cost guards](#hosting-plan-and-cost-guards). They include the
+maximum instance count, a budget and daily caps. Also make a log alert for
+this warning:
+
+`Rate limit {RateLimitPolicy} rejected {RejectedRequests} requests on this instance since its previous warning.`
+
+Each instance writes this warning a maximum of 1 time each minute for each
+limit. `RateLimitPolicy` is `Instance`, `Api`, `Feed` or `FeedDownload`. The
+warning does not contain client addresses or tokens.
+
+To stop an attack on the TV links, set `AzureWebJobs.OnlineFeed.Disabled` to
+`true`. Refer to [TV link kill switches](#tv-link-kill-switches). To stop all
+requests to the API, stop the Function App.
 
 ## Local development
 
@@ -1051,8 +1180,8 @@ Set-Location .\api
 func start --port 7071 --functions OnlineSession OnlineImportStart OnlineImportStatus OnlineImportCategories OnlineImportPlaylist OnlineImportDiscard OnlineImportWorker OnlineImportPoison OnlineImportCleanup OnlineProfileList OnlineProfileCreate OnlineProfileGet OnlineProfileCategories OnlineProfileSelect OnlineProfileRename OnlineProfileSource OnlineProfileRefresh OnlineProfileOutput OnlineProfileDelete OnlineProfileRefreshWorker OnlineProfileRefreshPoison OnlineProfileCleanup OnlineFeedGet OnlineFeedCreate OnlineFeedRegenerate OnlineFeedRevoke OnlineFeed OnlineFeedCleanup
 ```
 
-This list contains every online function. It intentionally leaves out the
-legacy `Upload` and `Download` functions, so their routes are not registered.
+This list contains every function of the API. The API does not have the
+legacy `Upload` and `Download` functions.
 The example `local.settings.json` points both `AzureWebJobsStorage` and
 `OnlinePlaylistStorage` at Azurite (`UseDevelopmentStorage=true`); the API
 creates the `online-imports`, `online-profiles` and `online-feeds` containers
@@ -1115,9 +1244,13 @@ Make these items in the subscription or in the resource group of the app:
 > cap, it stops data collection until the next daily reset. Until then, it
 > gets no new security records, and log alerts get no new data.
 
-A rate limit layer, for example Azure API Management or Azure Front Door with a
-web application firewall, can stop a flood before it gets to the app. Each of
-them adds cost, so this setup does not use them.
+The API also has its own rate limits. For example, by default the API accepts
+a maximum of 20 downloads of each TV link in 1 hour. With 1 instance and a
+playlist of 2 MB, the API then sends a maximum of approximately 30 GB for each
+link in 1 month. Refer to
+[Rate limits and cost protection](#rate-limits-and-cost-protection).
+Azure API Management and Azure Front Door can also stop a flood, but each of
+them adds cost. This setup does not use them.
 
 ### If a flood occurs
 
@@ -1166,7 +1299,10 @@ it deploys, it checks these items:
   identity-based service URIs)
 - The `dotnet-isolated` runtime (`functionAppConfig.runtime` on Flex
   Consumption, or `FUNCTIONS_WORKER_RUNTIME` on other plans)
-- The disabled legacy functions
+
+The `verify` job also examines the package of each build. The job stops if the
+package has the legacy `Upload` or `Download` function. It also stops if an
+HTTP route is not in `online/` or `feed/`.
 
 The package includes the generated hidden `.azurefunctions` directory and
 `host.json`, but never local configuration. GitHub shows **Run workflow** only
@@ -1254,9 +1390,10 @@ Expected API responses, all with `Cache-Control: no-store`:
 | 200 | Valid API token, delegated permission, allowed SPA and allowed tenant/user identity |
 | 401 | Missing, malformed, invalid or expired API token; includes `WWW-Authenticate: Bearer` |
 | 403 | Valid token but missing delegated scope, wrong SPA, or disallowed account |
-| 503 | Missing/invalid server configuration or signing-key discovery unavailable |
+| 429 | `rate_limited`: too many requests. Refer to [Rate limits and cost protection](#rate-limits-and-cost-protection) |
+| 503 | Missing/invalid server configuration or signing-key discovery unavailable. `rate_limits_not_configured` shows that an `OnlineRateLimits__*` setting is not valid |
 
-The import endpoints return these guard responses before anything else, and
+The rate limit checks occur first. The import endpoints then return these guard responses before anything else, and
 then the codes listed in [Import endpoints](#import-endpoints). The saved
 profile endpoints do the same, followed by the codes listed in
 [Profile endpoints](#profile-endpoints). The TV link owner endpoints do the
@@ -1282,7 +1419,7 @@ After the real setup, verify live sign-in/callback and sign-out in both a normal
 browser and the installed PWA with a local file already selected. Confirm the
 file, search, selection and favourites survive. Check an allowed account (200),
 a signed-in unlisted account (403), no/invalid token (401), exact-origin CORS,
-legacy endpoints disabled, and offline/backend failure behavior. Microsoft
+`404` from the removed legacy `Upload` and `Download` routes, and offline/backend failure behavior. Microsoft
 consent, deployed callback headers, PWA popup behavior, live signing-key
 discovery and deployed API access still require that real environment.
 
@@ -1331,3 +1468,6 @@ For TV links, also verify in that environment:
   record the full link, and who can read them.
 - Setting `AzureWebJobs.OnlineFeed.Disabled` to `true` stops every link, and
   removing the setting restores them.
+- The client limit of TV links works, and each client has its own limit. Use
+  the procedure in
+  [Rate limits and cost protection](#rate-limits-and-cost-protection).

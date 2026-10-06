@@ -271,7 +271,7 @@ public sealed class OnlineAccessTests : IDisposable
     }
 
     [Fact]
-    public void Only_the_guarded_online_endpoint_is_anonymous_at_the_Function_host()
+    public void Http_functions_are_anonymous_online_routes_and_the_legacy_functions_are_removed()
     {
         var onlineTrigger = typeof(OnlineSession).GetMethod("Run")!.GetParameters()[0]
             .GetCustomAttribute<HttpTriggerAttribute>()!;
@@ -280,11 +280,33 @@ public sealed class OnlineAccessTests : IDisposable
         Assert.NotNull(onlineTrigger.Methods);
         Assert.Equal(["get"], onlineTrigger.Methods);
 
-        foreach (var legacy in new[] { typeof(Upload), typeof(Download) })
+        var functions = typeof(OnlineSession).Assembly.GetTypes()
+            .SelectMany(type => type.GetMethods(
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
+            .Select(method => (Method: method, Function: method.GetCustomAttribute<FunctionAttribute>()))
+            .Where(item => item.Function is not null)
+            .ToList();
+        Assert.NotEmpty(functions);
+        Assert.DoesNotContain(functions, item => item.Function!.Name is "Upload" or "Download");
+
+        var httpFunctions = 0;
+        foreach (var (method, _) in functions)
         {
-            var trigger = legacy.GetMethod("Run")!.GetParameters()[0].GetCustomAttribute<HttpTriggerAttribute>()!;
-            Assert.Equal(AuthorizationLevel.Function, trigger.AuthLevel);
+            var trigger = method.GetParameters()
+                .Select(parameter => parameter.GetCustomAttribute<HttpTriggerAttribute>())
+                .SingleOrDefault(attribute => attribute is not null);
+            if (trigger is null)
+                continue;
+
+            httpFunctions++;
+            Assert.Equal(AuthorizationLevel.Anonymous, trigger.AuthLevel);
+            Assert.True(
+                trigger.Route?.StartsWith("online/", StringComparison.Ordinal) == true ||
+                trigger.Route?.StartsWith("feed/", StringComparison.Ordinal) == true,
+                $"Unexpected route {trigger.Route} of {method.DeclaringType?.Name}.{method.Name}.");
         }
+
+        Assert.True(httpFunctions > 1);
     }
 
     private sealed class UnavailableMetadata : BaseConfigurationManager

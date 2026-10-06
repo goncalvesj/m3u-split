@@ -46,11 +46,20 @@ describe('protected session client', () => {
     [401, 'unauthorized'],
     [403, 'forbidden'],
     [404, 'unavailable'],
+    [429, 'unavailable'],
     [500, 'unavailable'],
     [503, 'unavailable'],
   ])('does not turn HTTP %s into a successful session', async (status, kind) => {
     fetchMock.mockResolvedValue(new Response('', { status }))
     await expect(call()).rejects.toMatchObject({ kind })
+  })
+
+  it('tells the user to wait when the API rate limit rejects the session check', async () => {
+    fetchMock.mockResolvedValue(Response.json({ error: 'rate_limited' }, { status: 429, headers: { 'Retry-After': '60' } }))
+    await expect(call()).rejects.toMatchObject({
+      kind: 'unavailable',
+      message: 'The online API received too many requests. Wait one minute and try again.',
+    })
   })
 
   it.each([
