@@ -12,7 +12,7 @@ import {
   revokeFeedLink,
 } from './online-feeds'
 import type { OnlineFeedLink } from './online-feeds'
-import { formatTime, needsInteraction } from './online-imports'
+import { formatTime, needsInteraction } from './online-playlist-utils'
 import type { OnlineProfile } from './online-profiles'
 
 interface ProfileFeedLinkProps {

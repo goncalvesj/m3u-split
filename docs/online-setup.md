@@ -4,11 +4,11 @@
 
 Local M3U upload/read, category search/selection, opt-in favourites and filtered
 download remain available without an account or network connection once the app
-has loaded. Select **Local file**, **Import from URL**, or **Saved profiles** first.
+has loaded. Select **Local file** or **Saved profiles** first.
 Use **Change method** to select a different method. A change of method keeps the
-loaded local file, sign-in, and import in progress. Both online methods show
-Microsoft sign-in before the selected method. The API must check access first.
-Online methods are available only when the online configuration is valid.
+loaded local file, sign-in, and profile refresh in progress. Saved profiles show
+Microsoft sign-in first. The API must check access before it shows profiles.
+Saved profiles are available only when the online configuration is valid.
 Favourites keep the existing
 `m3u-split:favourites` key and exact category-name matching.
 
@@ -173,7 +173,7 @@ request, and does not send an email/identity parameter for authorization.
 ## UI on Azure App Service
 
 The UI at **https://m3u-split.azurewebsites.net/** has Microsoft sign-in.
-Select **Import from URL** or **Saved profiles** to use an online method.
+Select **Saved profiles** to use the server and get a TV link.
 The API must check access after sign-in. The UI deployment does not deploy the API.
 The GitHub Pages default base and workflows stay unchanged.
 
@@ -850,7 +850,7 @@ source's `#EXTM3U` line first, complete entries in source order, UTF-8 without
 a BOM and `\n` line endings.
 
 In the app, select **Saved profiles** and sign in. After the API checks access,
-the page shows saved profiles, not URL import. It lists each profile with its host, refresh progress, last
+the page shows saved profiles. It lists each profile with its host, refresh progress, last
 successful refresh, output size and channel count, the latest error and any
 missing categories, and shows how many of the allowed profiles are used. Each
 profile has **Refresh now**, **Download latest**, **Edit categories** (search,

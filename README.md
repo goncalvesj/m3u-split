@@ -9,7 +9,7 @@ The optional API uses .NET 10 Azure Functions.
 - Save favourite categories and reuse them with your next playlist
 - React 19 + TypeScript UI powered by Vite
 - Local file processing, selection, search, favourites and download never require an account
-- Optional Microsoft sign-in with server-verified account access, plus URL import and saved profiles for allowed accounts: the API downloads a provider playlist and returns only the filtered channels you pick, and a saved profile regenerates them with one click and can serve the latest result to Smart IPTV through a secret TV link
+- Microsoft sign-in with an API access check for saved profiles: the server downloads a provider playlist and keeps only the selected categories. Refresh a saved profile with one click. Use a secret TV link to load the latest result in Smart IPTV.
 
 ## Repo layout
 
@@ -17,17 +17,17 @@ The optional API uses .NET 10 Azure Functions.
 - `api/` – .NET 10 isolated-worker Azure Functions v4 API
 - `api.tests/` – API token-validation and account-authorization regression tests
 
-## Optional online sign-in, URL import and saved profiles
+## Online sign-in and saved profiles
 
 The local file workflow stays entirely in the browser.
 The Azure UI is at
 [m3u-split.azurewebsites.net](https://m3u-split.azurewebsites.net/).
 GitHub Pages stays at
 [goncalvesj.github.io/m3u-split](https://goncalvesj.github.io/m3u-split/).
-Select **Local file**, **Import from URL**, or **Saved profiles** first.
+Select **Local file** or **Saved profiles** first.
 The page shows only the selected method. Use **Change method** to select a different method.
-Online methods are available only when the online configuration is valid.
-Both online methods use Microsoft sign-in in a popup, then check an API access
+Saved profiles are available only when the online configuration is valid.
+Saved profiles use Microsoft sign-in in a popup, then check an API access
 token with `GET /api/online/session` on a separate Function App.
 Sign-in and sign-out do not reset the loaded
 local file, search, selection or favourites.
@@ -36,13 +36,6 @@ An account is authorized only when the API validates its token and its configure
 tenant/user object ID allowlist. A successful Microsoft login alone is not online
 authorization. Without configuration, or when authentication/the backend fails,
 local processing remains available.
-
-**URL import is available to verified accounts.** Paste a provider playlist URL
-after you select **Import from URL** and sign in: the Function App downloads it into private storage with
-SSRF protection and lists its categories with channel counts. Pick categories
-(with search and the same favourites) and download a server-generated filtered
-`channels.m3u`; the full provider file never reaches the browser. Imports are
-private to each account, one at a time, and expire after 24 hours by default.
 
 **Saved profiles** keep a name, a provider URL and your chosen categories on the
 server, up to 10 per account by default. One click on **Refresh now** downloads
@@ -62,7 +55,7 @@ that playlist, including the provider's stream credentials, so keep it private.
 The API limits the requests of each client and the downloads of each TV link.
 The API sends HTTP 429 for each request above a limit.
 
-See [Online sign-in, URL import, saved profiles and standalone API setup](docs/online-setup.md)
+See [Online sign-in, saved profiles and standalone API setup](docs/online-setup.md)
 for the exact Entra registrations, callbacks, public build variables, server
 settings, rate limits, playlist storage and roles, CORS, the hosting plan and
 cost guards, and the API workflow. The workflow builds the API for pushes and

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { OnlineAccount, OnlineAuth, OnlineCredentials } from './online-auth'
 import { fetchOnlineSession, OnlineApiError } from './online-api'
 import type { OnlineConfigurationResult } from './online-config'
-import OnlineImport from './OnlineImport'
 import OnlineProfiles from './OnlineProfiles'
 
 type OnlineState =
@@ -35,11 +34,11 @@ function authFailure(error: unknown): { message: string; reason: 'sign-in' | 're
 
 interface OnlinePlaylistsProps {
   configuration: OnlineConfigurationResult
-  method: 'import' | 'profiles' | null
+  visible: boolean
   onAccessVerified: (verified: boolean) => void
 }
 
-export default function OnlinePlaylists({ configuration, method, onAccessVerified }: OnlinePlaylistsProps) {
+export default function OnlinePlaylists({ configuration, visible, onAccessVerified }: OnlinePlaylistsProps) {
   const config = configuration.kind === 'configured' ? configuration.config : null
   const [auth, setAuth] = useState<OnlineAuth | null>(null)
   const [account, setAccount] = useState<OnlineAccount | null>(null)
@@ -86,8 +85,7 @@ export default function OnlinePlaylists({ configuration, method, onAccessVerifie
     }
   }, [config, cancelPendingAccess])
 
-  // URL import calls fail like the session check when the API or Microsoft rejects this session.
-  const handleImportAccessError = useCallback((error: unknown) => {
+  const handleAccessError = useCallback((error: unknown) => {
     setState(current => {
       if (current.kind !== 'verified') return current
       return error instanceof OnlineApiError
@@ -185,7 +183,7 @@ export default function OnlinePlaylists({ configuration, method, onAccessVerifie
   const signOutFailed = state.kind === 'error' && state.reason === 'sign-out'
 
   return (
-    <section className="card online-playlists" aria-labelledby="online-playlists-title" hidden={!method}>
+    <section className="card online-playlists" aria-labelledby="online-playlists-title" hidden={!visible}>
       <div className="card-header">
         <h2 id="online-playlists-title">Online playlists</h2>
       </div>
@@ -229,26 +227,13 @@ export default function OnlinePlaylists({ configuration, method, onAccessVerifie
           </div>
           <p className="online-hint">Sign-in and sign-out use a popup, never a full-page redirect. Local files and browser favourites are not uploaded or cleared.</p>
           {auth && account && config && (
-            <div hidden={method !== 'import'}>
-              <OnlineImport
-                key={account.id}
-                config={config}
-                auth={auth}
-                active={state.kind === 'verified'}
-                onAccessError={handleImportAccessError}
-              />
-            </div>
-          )}
-          {auth && account && config && (
-            <div hidden={method !== 'profiles'}>
-              <OnlineProfiles
-                key={`profiles:${account.id}`}
-                config={config}
-                auth={auth}
-                active={state.kind === 'verified'}
-                onAccessError={handleImportAccessError}
-              />
-            </div>
+            <OnlineProfiles
+              key={`profiles:${account.id}`}
+              config={config}
+              auth={auth}
+              active={state.kind === 'verified'}
+              onAccessError={handleAccessError}
+            />
           )}
         </>
       )}

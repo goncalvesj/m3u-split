@@ -3,7 +3,7 @@ import { loadFavourites, matchFavourites } from './favourites'
 import { OnlineApiError } from './online-api'
 import type { OnlineAuth } from './online-auth'
 import type { OnlineConfiguration } from './online-config'
-import { checkSourceUrl, formatBytes, formatCount, formatTime, needsInteraction } from './online-imports'
+import { checkSourceUrl, formatBytes, formatCount, formatTime, needsInteraction } from './online-playlist-utils'
 import {
   changeProfileSource,
   checkProfileName,
@@ -1208,7 +1208,7 @@ function ProfileCategoryEditor({
     }
     if (!saved.categories.length) {
       setNote({
-        text: 'No favourites are saved in this browser yet. Save favourites from a local playlist or a URL import first.',
+        text: 'No favourites are saved in this browser yet. Save favourites from a local playlist first.',
         error: false,
       })
       return

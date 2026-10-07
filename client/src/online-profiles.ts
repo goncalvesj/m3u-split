@@ -1,6 +1,6 @@
 import { OnlineApiError } from './online-api'
 import type { OnlineConfiguration } from './online-config'
-import { formatBytes } from './online-imports'
+import { formatBytes } from './online-playlist-utils'
 
 export type ProfileRefreshState = 'queued' | 'running' | 'succeeded' | 'failed'
 export type ProfileRefreshStage = 'downloading' | 'indexing' | 'filtering'

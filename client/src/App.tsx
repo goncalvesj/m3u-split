@@ -6,7 +6,7 @@ import { readOnlineConfiguration } from './online-config'
 import './App.css'
 
 function App() {
-  const [method, setMethod] = useState<'local' | 'import' | 'profiles' | null>(null)
+  const [method, setMethod] = useState<'local' | 'profiles' | null>(null)
   const [configuration] = useState(() => readOnlineConfiguration(import.meta.env, window.location))
   const [onlineVerified, setOnlineVerified] = useState(false)
   const methodHeadingRef = useRef<HTMLHeadingElement>(null)
@@ -159,7 +159,7 @@ function App() {
   }
 
   const hasFile = categories.length > 0
-  const methodName = method === 'local' ? 'Local file' : method === 'import' ? 'Import from URL' : 'Saved profiles'
+  const methodName = method === 'local' ? 'Local file' : 'Saved profiles'
   const steps = method === 'local'
     ? [
         { label: 'Method', done: true, active: false },
@@ -171,7 +171,7 @@ function App() {
       ? [
           { label: 'Method', done: true, active: false },
           { label: 'Sign in', done: onlineVerified, active: !onlineVerified },
-          { label: method === 'import' ? 'Import' : 'Profiles', done: false, active: onlineVerified },
+          { label: 'Profiles', done: false, active: onlineVerified },
         ]
       : [{ label: 'Method', done: false, active: true }]
 
@@ -216,23 +216,17 @@ function App() {
                   <span className="mode-desc">Use an M3U file from this device. No account is necessary.</span>
                 </button>
                 {configuration.kind === 'configured' && (
-                  <>
-                    <button type="button" className="mode-btn" onClick={() => changeMethod('import')}>
-                      <span className="mode-title">Import from URL</span>
-                      <span className="mode-desc">The server downloads the playlist. Microsoft sign-in is necessary.</span>
-                    </button>
                     <button type="button" className="mode-btn" onClick={() => changeMethod('profiles')}>
                       <span className="mode-title">Saved profiles</span>
                       <span className="mode-desc">Refresh a playlist, download it, or get a TV link. Microsoft sign-in is necessary.</span>
                     </button>
-                  </>
                 )}
               </div>
               {configuration.kind !== 'configured' && (
                 <p className="online-hint">
                   {configuration.kind === 'invalid'
-                    ? 'Online methods are not available. The online configuration is not valid.'
-                    : 'Online methods are not available. Online sign-in is not configured.'}
+                    ? 'Saved profiles are not available. The online configuration is not valid.'
+                    : 'Saved profiles are not available. Online sign-in is not configured.'}
                   {' '}Use a local file.
                 </p>
               )}
@@ -431,7 +425,7 @@ function App() {
         )}
         <OnlinePlaylists
           configuration={configuration}
-          method={method === 'import' || method === 'profiles' ? method : null}
+          visible={method === 'profiles'}
           onAccessVerified={setOnlineVerified}
         />
       </main>
