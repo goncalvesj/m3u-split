@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -41,6 +42,68 @@ public static partial class M3uPlaylist
     public const int MaxCategories = 10_000;
     public const int MaxCategoryNameChars = 1024 * 1024;
     private const int ProgressInterval = 1000;
+    // Four MiB blocks also work with older append blob service versions.
+    private const int DownloadChunkSize = 4 * 1024 * 1024;
+
+    /// <summary>Checks the M3U header and copies a download in blocks. Returns the total byte count.</summary>
+    public static async Task<long> CopyDownloadAsync(
+        Stream source,
+        Func<byte[], int, CancellationToken, Task> append,
+        Func<long, CancellationToken, Task> progress,
+        CancellationToken cancellationToken)
+    {
+        var buffer = ArrayPool<byte>.Shared.Rent(DownloadChunkSize);
+        try
+        {
+            var checkedHeader = false;
+            long stored = 0;
+            var endOfStream = false;
+            while (!endOfStream)
+            {
+                var filled = 0;
+                while (filled < DownloadChunkSize)
+                {
+                    var read = await source.ReadAsync(buffer.AsMemory(filled, DownloadChunkSize - filled), cancellationToken);
+                    if (read == 0)
+                    {
+                        endOfStream = true;
+                        break;
+                    }
+
+                    filled += read;
+                    if (!checkedHeader)
+                    {
+                        var looksLikeM3u = LooksLikeM3u(buffer.AsSpan(0, filled), endOfStream: false);
+                        if (looksLikeM3u == false)
+                            throw new M3uFormatException(M3uError.NotM3u);
+                        checkedHeader = looksLikeM3u == true;
+                    }
+
+                    await progress(stored + filled, cancellationToken);
+                }
+
+                // Reject an undecided header after the first block or the end of the body.
+                if (!checkedHeader)
+                {
+                    if (LooksLikeM3u(buffer.AsSpan(0, filled), endOfStream: true) != true)
+                        throw new M3uFormatException(M3uError.NotM3u);
+                    checkedHeader = true;
+                }
+
+                if (filled > 0)
+                {
+                    await append(buffer, filled, cancellationToken);
+                    stored += filled;
+                }
+            }
+
+            return stored;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
 
     /// <summary>Checks the start of a download for the #EXTM3U header without decoding the whole body.</summary>
     /// <returns>True or false when known; null when more bytes are needed.</returns>

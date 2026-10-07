@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Diagnostics;
 using Azure;
 using Microsoft.Azure.Functions.Worker;
@@ -14,7 +13,6 @@ namespace api;
 /// </summary>
 public sealed class OnlineProfileRefreshWorker(OnlineProfileService profiles, ILogger<OnlineProfileRefreshWorker> logger)
 {
-    private const int ChunkSize = 4 * 1024 * 1024;
     private const int MaxUpdateAttempts = 5;
     private static readonly TimeSpan ProgressInterval = TimeSpan.FromSeconds(3);
     // Refreshes end within the 10-minute function timeout, so anything this old is left over.
@@ -198,58 +196,15 @@ public sealed class OnlineProfileRefreshWorker(OnlineProfileService profiles, IL
         run.TotalBytes = response.ContentLength;
         await store.CreateWorkAsync(run.Owner, run.ProfileId, run.RefreshId, cancellationToken);
 
-        var buffer = ArrayPool<byte>.Shared.Rent(ChunkSize);
-        try
-        {
-            var checkedHeader = false;
-            long stored = 0;
-            var endOfStream = false;
-            while (!endOfStream)
+        run.BytesDownloaded = await M3uPlaylist.CopyDownloadAsync(
+            response.Content,
+            (buffer, count, token) => store.AppendWorkAsync(run.Owner, run.ProfileId, run.RefreshId, buffer, count, token),
+            (bytes, token) =>
             {
-                var filled = 0;
-                while (filled < ChunkSize)
-                {
-                    var read = await response.Content.ReadAsync(buffer.AsMemory(filled, ChunkSize - filled), cancellationToken);
-                    if (read == 0)
-                    {
-                        endOfStream = true;
-                        break;
-                    }
-
-                    filled += read;
-                    if (!checkedHeader)
-                    {
-                        var looksLikeM3u = M3uPlaylist.LooksLikeM3u(buffer.AsSpan(0, filled), endOfStream: false);
-                        if (looksLikeM3u == false)
-                            throw new M3uFormatException(M3uError.NotM3u);
-                        checkedHeader = looksLikeM3u == true;
-                    }
-
-                    run.BytesDownloaded = stored + filled;
-                    await SaveProgressIfDueAsync(run, cancellationToken);
-                }
-
-                // Whatever is still undecided after the first chunk (or a short body) is not a playlist.
-                if (!checkedHeader)
-                {
-                    if (M3uPlaylist.LooksLikeM3u(buffer.AsSpan(0, filled), endOfStream: true) != true)
-                        throw new M3uFormatException(M3uError.NotM3u);
-                    checkedHeader = true;
-                }
-
-                if (filled > 0)
-                {
-                    await store.AppendWorkAsync(run.Owner, run.ProfileId, run.RefreshId, buffer, filled, cancellationToken);
-                    stored += filled;
-                }
-            }
-
-            run.BytesDownloaded = stored;
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
+                run.BytesDownloaded = bytes;
+                return SaveProgressIfDueAsync(run, token);
+            },
+            cancellationToken);
     }
 
     private async Task<OnlineProfileCategoryIndex> IndexAsync(RefreshRun run, CancellationToken cancellationToken)

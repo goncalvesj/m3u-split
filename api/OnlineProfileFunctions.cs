@@ -1,7 +1,6 @@
 using System.Buffers;
 using System.Globalization;
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using Azure;
 using Microsoft.AspNetCore.Http;
@@ -81,7 +80,6 @@ public sealed class OnlineProfileFunctions(
     private const int MaxNameLength = 80;
     private const int MaxUpdateAttempts = 5;
     private const int MaxListedMissingCategories = 100;
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     [Function("OnlineProfileList")]
     public async Task<IActionResult> List(
@@ -120,7 +118,7 @@ public sealed class OnlineProfileFunctions(
         if (!profiles.IsConfigured)
             return NotConfigured();
 
-        var body = await ReadJsonAsync<OnlineProfileCreateRequest>(request, MaxCategoriesBodyBytes, cancellationToken);
+        var body = await OnlineHttp.ReadJsonAsync<OnlineProfileCreateRequest>(request, MaxCategoriesBodyBytes, cancellationToken);
         if (body is null)
             return OnlineHttp.Error(400, "invalid_request", "Send a JSON body with the profile name and playlist URL.");
         if (!TryReadName(body.Name, out var name))
@@ -257,7 +255,7 @@ public sealed class OnlineProfileFunctions(
         if (!OnlineImportIds.TryParse(profileId, out var id))
             return NotFound();
 
-        var body = await ReadJsonAsync<OnlineProfileSelectionRequest>(request, MaxCategoriesBodyBytes, cancellationToken);
+        var body = await OnlineHttp.ReadJsonAsync<OnlineProfileSelectionRequest>(request, MaxCategoriesBodyBytes, cancellationToken);
         if (body is null)
             return OnlineHttp.Error(400, "invalid_request", "Send a JSON body with the selected categories.");
         if (body.Categories is null || !TryReadSelection(body.Categories, allowEmpty: false, out var selection))
@@ -319,7 +317,7 @@ public sealed class OnlineProfileFunctions(
         if (!OnlineImportIds.TryParse(profileId, out var id))
             return NotFound();
 
-        var body = await ReadJsonAsync<OnlineProfileRenameRequest>(request, MaxSmallBodyBytes, cancellationToken);
+        var body = await OnlineHttp.ReadJsonAsync<OnlineProfileRenameRequest>(request, MaxSmallBodyBytes, cancellationToken);
         if (body is null)
             return OnlineHttp.Error(400, "invalid_request", "Send a JSON body with the new profile name.");
         if (!TryReadName(body.Name, out var name))
@@ -365,7 +363,7 @@ public sealed class OnlineProfileFunctions(
         if (!OnlineImportIds.TryParse(profileId, out var id))
             return NotFound();
 
-        var body = await ReadJsonAsync<OnlineProfileSourceRequest>(request, MaxSmallBodyBytes, cancellationToken);
+        var body = await OnlineHttp.ReadJsonAsync<OnlineProfileSourceRequest>(request, MaxSmallBodyBytes, cancellationToken);
         if (body is null)
             return OnlineHttp.Error(400, "invalid_request", "Send a JSON body with the playlist URL.");
         if (!SafeUrlPolicy.TryParseSource(body.Url, out var source, out var errorCode))
@@ -633,32 +631,6 @@ public sealed class OnlineProfileFunctions(
         return true;
     }
 
-    private static async Task<T?> ReadJsonAsync<T>(HttpRequest request, int maxBytes, CancellationToken cancellationToken)
-        where T : class
-    {
-        if (!request.HasJsonContentType() || request.ContentLength > maxBytes)
-            return null;
-
-        using var buffer = new MemoryStream();
-        var chunk = new byte[16 * 1024];
-        int read;
-        while ((read = await request.Body.ReadAsync(chunk, cancellationToken)) > 0)
-        {
-            if (buffer.Length + read > maxBytes)
-                return null;
-            buffer.Write(chunk, 0, read);
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize<T>(buffer.GetBuffer().AsSpan(0, (int)buffer.Length), Json);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
     private async Task TryAsync(string operation, Func<Task> action)
     {
         try
@@ -718,7 +690,11 @@ public sealed class OnlineProfileOutputResult(OnlineProfileOutputContent output,
 {
     private const int MaxFileNameLength = 80;
 
-    public async Task ExecuteResultAsync(ActionContext context)
+    /// <summary>Sends the playlist and disposes its stream. Aborts a partial response after an error.</summary>
+    public Task ExecuteResultAsync(ActionContext context) => SendAsync(output, context, logger);
+
+    internal static async Task SendAsync(
+        OnlineProfileOutputContent output, ActionContext context, ILogger logger, bool isFeed = false, bool headOnly = false)
     {
         var http = context.HttpContext;
         var response = http.Response;
@@ -732,8 +708,11 @@ public sealed class OnlineProfileOutputResult(OnlineProfileOutputContent output,
                 response.ContentLength = output.SizeBytes;
                 response.Headers.CacheControl = "no-store";
                 response.Headers.XContentTypeOptions = "nosniff";
+                if (isFeed)
+                    OnlineFeedResult.ApplyHeaders(response);
                 response.Headers.ContentDisposition = $"attachment; filename=\"{FileName(output.ProfileName)}\"";
-                await output.Content.CopyToAsync(response.Body, aborted);
+                if (!headOnly)
+                    await output.Content.CopyToAsync(response.Body, aborted);
             }
             catch (Exception) when (aborted.IsCancellationRequested)
             {
@@ -741,7 +720,10 @@ public sealed class OnlineProfileOutputResult(OnlineProfileOutputContent output,
             }
             catch (Exception exception) when (!aborted.IsCancellationRequested)
             {
-                logger.LogError("Streaming a profile playlist failed ({ExceptionType}).", exception.GetType().Name);
+                if (isFeed)
+                    logger.LogError("Streaming a TV link playlist failed ({ExceptionType}).", exception.GetType().Name);
+                else
+                    logger.LogError("Streaming a profile playlist failed ({ExceptionType}).", exception.GetType().Name);
                 if (response.HasStarted)
                 {
                     // Abort instead of ending normally so the client cannot mistake a partial file for a complete one.
@@ -752,8 +734,16 @@ public sealed class OnlineProfileOutputResult(OnlineProfileOutputContent output,
                 response.Clear();
                 response.StatusCode = StatusCodes.Status503ServiceUnavailable;
                 response.Headers.CacheControl = "no-store";
+                if (isFeed)
+                    OnlineFeedResult.ApplyHeaders(response);
                 await response.WriteAsJsonAsync(
-                    new { error = "profiles_unavailable", message = "The playlist could not be downloaded. Try again." },
+                    new
+                    {
+                        error = isFeed ? "feeds_unavailable" : "profiles_unavailable",
+                        message = isFeed
+                            ? "TV links are temporarily unavailable. Try again."
+                            : "The playlist could not be downloaded. Try again.",
+                    },
                     CancellationToken.None);
             }
         }

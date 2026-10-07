@@ -243,55 +243,14 @@ public sealed class OnlineFeedFunctions(
         OnlineHttp.Error(503, "feeds_unavailable", "TV links are temporarily unavailable. Try again.");
 }
 
-/// <summary>
-/// Streams the latest output of a profile to a TV link. HEAD gets the same status and headers without a
-/// body. A failure before anything was sent becomes 503 feeds_unavailable; a failure while streaming
-/// aborts the connection so a partial playlist is never mistaken for a complete one.
-/// </summary>
+/// <summary>Sends profile output through a TV link. HEAD responses omit the playlist body.</summary>
 public sealed class OnlineFeedResult(OnlineProfileOutputContent output, bool headOnly, ILogger logger) : IActionResult
 {
-    public async Task ExecuteResultAsync(ActionContext context)
-    {
-        var http = context.HttpContext;
-        var response = http.Response;
-        var aborted = http.RequestAborted;
-        await using (output)
-        {
-            try
-            {
-                response.StatusCode = StatusCodes.Status200OK;
-                ApplyHeaders(response);
-                response.ContentType = "audio/x-mpegurl; charset=utf-8";
-                response.ContentLength = output.SizeBytes;
-                response.Headers.ContentDisposition =
-                    $"attachment; filename=\"{OnlineProfileOutputResult.FileName(output.ProfileName)}\"";
-                if (!headOnly)
-                    await output.Content.CopyToAsync(response.Body, aborted);
-            }
-            catch (Exception) when (aborted.IsCancellationRequested)
-            {
-                // The client went away; there is nobody left to answer.
-            }
-            catch (Exception exception) when (!aborted.IsCancellationRequested)
-            {
-                logger.LogError("Streaming a TV link playlist failed ({ExceptionType}).", exception.GetType().Name);
-                if (response.HasStarted)
-                {
-                    http.Abort();
-                    return;
-                }
+    /// <summary>Sends the playlist with TV link headers and error codes.</summary>
+    public Task ExecuteResultAsync(ActionContext context) =>
+        OnlineProfileOutputResult.SendAsync(output, context, logger, isFeed: true, headOnly: headOnly);
 
-                response.Clear();
-                response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-                ApplyHeaders(response);
-                await response.WriteAsJsonAsync(
-                    new { error = "feeds_unavailable", message = "TV links are temporarily unavailable. Try again." },
-                    CancellationToken.None);
-            }
-        }
-    }
-
-    /// <summary>Headers of every TV link response, errors included: never cached, indexed or passed on as a referrer.</summary>
+    /// <summary>Sets TV link headers that prevent caches, search indexes, and referrer disclosure.</summary>
     public static void ApplyHeaders(HttpResponse response)
     {
         response.Headers.CacheControl = "no-store";

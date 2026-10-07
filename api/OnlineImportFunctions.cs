@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 namespace api;
 
@@ -42,7 +41,6 @@ public sealed class OnlineImportFunctions(
 {
     private const int MaxStartBodyBytes = 16 * 1024;
     private const int MaxPlaylistBodyBytes = 4 * 1024 * 1024;
-    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     [Function("OnlineImportStart")]
     public async Task<IActionResult> Start(
@@ -55,7 +53,7 @@ public sealed class OnlineImportFunctions(
         if (!imports.IsConfigured)
             return NotConfigured();
 
-        var body = await ReadJsonAsync<StartOnlineImportRequest>(request, MaxStartBodyBytes, cancellationToken);
+        var body = await OnlineHttp.ReadJsonAsync<StartOnlineImportRequest>(request, MaxStartBodyBytes, cancellationToken);
         if (body is null)
             return OnlineHttp.Error(400, "invalid_request", "Send a JSON body with the playlist URL.");
 
@@ -181,7 +179,7 @@ public sealed class OnlineImportFunctions(
         var store = imports.Store;
         try
         {
-            var (record, failure) = await GetReadyAsync(auth.Owner, id, cancellationToken);
+            var failure = await CheckReadyAsync(auth.Owner, id, cancellationToken);
             if (failure is not null)
                 return failure;
 
@@ -217,7 +215,7 @@ public sealed class OnlineImportFunctions(
         if (!OnlineImportIds.TryParse(importId, out var id))
             return NotFound();
 
-        var body = await ReadJsonAsync<OnlineImportPlaylistRequest>(request, MaxPlaylistBodyBytes, cancellationToken);
+        var body = await OnlineHttp.ReadJsonAsync<OnlineImportPlaylistRequest>(request, MaxPlaylistBodyBytes, cancellationToken);
         if (body?.Categories is not { Count: > 0 and <= M3uPlaylist.MaxCategories } requested ||
             requested.Any(string.IsNullOrEmpty))
             return InvalidSelection("Select at least one category.");
@@ -226,7 +224,7 @@ public sealed class OnlineImportFunctions(
         Stream? source = null;
         try
         {
-            var (_, failure) = await GetReadyAsync(auth.Owner, id, cancellationToken);
+            var failure = await CheckReadyAsync(auth.Owner, id, cancellationToken);
             if (failure is not null)
                 return failure;
 
@@ -301,24 +299,24 @@ public sealed class OnlineImportFunctions(
         }
     }
 
-    private async Task<(OnlineImportRecord? Record, IActionResult? Failure)> GetReadyAsync(
+    private async Task<IActionResult?> CheckReadyAsync(
         OnlineImportOwner owner, Guid id, CancellationToken cancellationToken)
     {
         var store = imports.Store!;
         var stored = await store.GetAsync(owner, id, cancellationToken);
         if (stored is null)
-            return (null, NotFound());
+            return NotFound();
 
         if (stored.Record.ExpiresAt <= DateTimeOffset.UtcNow)
         {
             await store.DeleteImportAsync(owner, id, cancellationToken);
-            return (null, Expired());
+            return Expired();
         }
 
         if (stored.Record.Status != OnlineImportStatus.Ready)
-            return (null, OnlineHttp.Error(409, "import_not_ready", "This import is not ready yet."));
+            return OnlineHttp.Error(409, "import_not_ready", "This import is not ready yet.");
 
-        return (stored.Record, null);
+        return null;
     }
 
     private bool IsStale(OnlineImportRecord record, DateTimeOffset now) => record.Status switch
@@ -342,32 +340,6 @@ public sealed class OnlineImportFunctions(
         record.Entries,
         record.CategoryCount,
         record.ErrorCode is null ? null : new OnlineImportErrorResponse(record.ErrorCode, record.HttpStatus));
-
-    private static async Task<T?> ReadJsonAsync<T>(HttpRequest request, int maxBytes, CancellationToken cancellationToken)
-        where T : class
-    {
-        if (!request.HasJsonContentType() || request.ContentLength > maxBytes)
-            return null;
-
-        using var buffer = new MemoryStream();
-        var chunk = new byte[16 * 1024];
-        int read;
-        while ((read = await request.Body.ReadAsync(chunk, cancellationToken)) > 0)
-        {
-            if (buffer.Length + read > maxBytes)
-                return null;
-            buffer.Write(chunk, 0, read);
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize<T>(buffer.GetBuffer().AsSpan(0, (int)buffer.Length), Json);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
 
     private async Task TryAsync(string operation, Func<Task> action)
     {

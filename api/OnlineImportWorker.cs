@@ -1,7 +1,6 @@
 using Azure;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
-using System.Buffers;
 using System.Diagnostics;
 
 namespace api;
@@ -12,8 +11,6 @@ namespace api;
 /// </summary>
 public sealed class OnlineImportWorker(OnlineImportService imports, ILogger<OnlineImportWorker> logger)
 {
-    // Append blob blocks may be at most 4 MiB on every service version, including Azurite.
-    private const int ChunkSize = 4 * 1024 * 1024;
     private static readonly TimeSpan ProgressInterval = TimeSpan.FromSeconds(3);
 
     [Function("OnlineImportWorker")]
@@ -170,64 +167,23 @@ public sealed class OnlineImportWorker(OnlineImportService imports, ILogger<Onli
         await store.CreateSourceAsync(record, cancellationToken);
         var blob = store.GetSourceBlob(record.Owner, record.Id);
 
-        var buffer = ArrayPool<byte>.Shared.Rent(ChunkSize);
-        try
-        {
-            var checkedHeader = false;
-            long stored = 0;
-            var lastProgress = Stopwatch.GetTimestamp();
-            var endOfStream = false;
-            while (!endOfStream)
+        var lastProgress = Stopwatch.GetTimestamp();
+        record.BytesDownloaded = await M3uPlaylist.CopyDownloadAsync(
+            response.Content,
+            async (buffer, count, token) =>
             {
-                var filled = 0;
-                while (filled < ChunkSize)
-                {
-                    var read = await response.Content.ReadAsync(buffer.AsMemory(filled, ChunkSize - filled), cancellationToken);
-                    if (read == 0)
-                    {
-                        endOfStream = true;
-                        break;
-                    }
-
-                    filled += read;
-                    if (!checkedHeader)
-                    {
-                        var looksLikeM3u = M3uPlaylist.LooksLikeM3u(buffer.AsSpan(0, filled), endOfStream: false);
-                        if (looksLikeM3u == false)
-                            throw new M3uFormatException(M3uError.NotM3u);
-                        checkedHeader = looksLikeM3u == true;
-                    }
-
-                    if (Stopwatch.GetElapsedTime(lastProgress) >= ProgressInterval)
-                    {
-                        record.BytesDownloaded = stored + filled;
-                        await SaveProgressAsync(run, cancellationToken);
-                        lastProgress = Stopwatch.GetTimestamp();
-                    }
-                }
-
-                // Whatever is still undecided after the first chunk (or a short body) is not a playlist.
-                if (!checkedHeader)
-                {
-                    if (M3uPlaylist.LooksLikeM3u(buffer.AsSpan(0, filled), endOfStream: true) != true)
-                        throw new M3uFormatException(M3uError.NotM3u);
-                    checkedHeader = true;
-                }
-
-                if (filled > 0)
-                {
-                    using var chunk = new MemoryStream(buffer, 0, filled, writable: false);
-                    await blob.AppendBlockAsync(chunk, new Azure.Storage.Blobs.Models.AppendBlobAppendBlockOptions(), cancellationToken);
-                    stored += filled;
-                }
-            }
-
-            record.BytesDownloaded = stored;
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
+                using var chunk = new MemoryStream(buffer, 0, count, writable: false);
+                await blob.AppendBlockAsync(chunk, new Azure.Storage.Blobs.Models.AppendBlobAppendBlockOptions(), token);
+            },
+            async (bytes, token) =>
+            {
+                if (Stopwatch.GetElapsedTime(lastProgress) < ProgressInterval)
+                    return;
+                record.BytesDownloaded = bytes;
+                await SaveProgressAsync(run, token);
+                lastProgress = Stopwatch.GetTimestamp();
+            },
+            cancellationToken);
     }
 
     private async Task IndexAsync(ImportRun run, CancellationToken cancellationToken)

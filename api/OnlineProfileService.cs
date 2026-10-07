@@ -1,6 +1,4 @@
 using System.Diagnostics.CodeAnalysis;
-using Azure;
-using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -166,7 +164,7 @@ public sealed class OnlineProfileService : IDisposable
 
             var download = await Store.OpenOutputAsync(owner, profileId, output.OutputId, cancellationToken);
             if (download is not null)
-                return new OnlineProfileOutputContent(download.Content, output, stored.Record.Name, download.Details);
+                return new OnlineProfileOutputContent(download.Content, stored.Record.Name, download.Details.ContentLength);
         }
 
         return null;
@@ -185,24 +183,16 @@ public sealed class OnlineProfileService : IDisposable
 /// <summary>An open current output version. Disposing it closes the content stream.</summary>
 public sealed class OnlineProfileOutputContent : IAsyncDisposable
 {
-    internal OnlineProfileOutputContent(Stream content, OnlineProfileOutput output, string profileName, BlobDownloadDetails details)
+    internal OnlineProfileOutputContent(Stream content, string profileName, long sizeBytes)
     {
         Content = content;
-        OutputId = output.OutputId;
-        RefreshedAt = output.RefreshedAt;
-        Channels = output.Channels;
-        SizeBytes = details.ContentLength;
-        ETag = details.ETag;
+        SizeBytes = sizeBytes;
         ProfileName = profileName;
     }
 
     /// <summary>The playlist (UTF-8 without a BOM, \n line endings).</summary>
     public Stream Content { get; }
-    public Guid OutputId { get; }
-    public DateTimeOffset RefreshedAt { get; }
     public long SizeBytes { get; }
-    public long Channels { get; }
-    public ETag ETag { get; }
     public string ProfileName { get; }
 
     public ValueTask DisposeAsync() => Content.DisposeAsync();
