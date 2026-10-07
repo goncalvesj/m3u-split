@@ -69,6 +69,11 @@ Before the first push of `azure`, add the `azure-functions` environment, its `az
 The UI uses App Service.
 The API now uses a Dedicated Linux plan with a system-assigned identity.
 Refer to [API on a Dedicated plan](docs/online-setup.md#api-on-a-dedicated-plan) for the template and local deployment commands.
+
+Use [`deploy-ui.ps1`](scripts/deploy-ui.ps1) and [`deploy-api.ps1`](scripts/deploy-api.ps1) for code updates to the current apps.
+Pass the subscription, resource group, and app name as parameters.
+Use `-WhatIf` to check the target without a build or deployment.
+
 The API denies online access until it has valid Entra settings.
 Entra registrations and API CORS are future tasks.
 GitHub Pages keeps `master` as its source.

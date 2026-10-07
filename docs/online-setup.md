@@ -205,69 +205,34 @@ It does not change the plan or other apps.
 ### Build and deploy again
 
 Use PowerShell 7 from the repository root.
-Replace `<SUBSCRIPTION-ID>` and `<RESOURCE-GROUP>` with the real values.
+Use `scripts\deploy-ui.ps1` to deploy to the current UI app.
+Replace the placeholders with the real values.
 Make sure that the Azure CLI has a signed-in account for this subscription.
-These commands repeat the local-only UI deployment.
-The guard permits only `.env.example`, which Vite does not load.
-The zip file holds the contents of `dist`, not the `dist` folder.
+The script does not make resources or change app settings.
+It preserves the plan, storage, roles, CORS, and Entra setup.
 
 ```powershell
-$ErrorActionPreference = 'Stop'
-$subscription = '<SUBSCRIPTION-ID>'
-$resourceGroup = '<RESOURCE-GROUP>'
-if ($subscription.StartsWith('<') -or $resourceGroup.StartsWith('<')) {
-    throw 'Replace the placeholders with the real values.'
-}
-$zip = Join-Path ([System.IO.Path]::GetTempPath()) 'm3u-split-ui.zip'
-if (Test-Path -LiteralPath $zip) {
-    throw 'The temporary zip file already exists.'
+$target = @{
+    SubscriptionId = '<SUBSCRIPTION-ID>'
+    ResourceGroup = '<RESOURCE-GROUP>'
+    AppName = '<UI-WEB-APP>'
 }
 
-Set-Location .\client
-$envFiles = @(
-    Get-ChildItem -LiteralPath . -Force -File |
-        Where-Object { $_.Name -like '.env*' -and $_.Name -ne '.env.example' }
-)
-if ($envFiles.Count -gt 0) {
-    throw 'The UI build must not use local environment files.'
-}
-$env:VITE_ENTRA_TENANT_ID = ''
-$env:VITE_ENTRA_SPA_CLIENT_ID = ''
-$env:VITE_ENTRA_API_SCOPE = ''
-$env:VITE_ONLINE_API_BASE_URL = ''
-
-npm ci --no-audit --no-fund
-if ($LASTEXITCODE -ne 0) {
-    throw 'The dependency install failed.'
-}
-& $env:ComSpec /d /c 'npm run build -- --base /'
-if ($LASTEXITCODE -ne 0) {
-    throw 'The UI build failed.'
-}
-
-$dist = (Resolve-Path -LiteralPath .\dist).Path
-try {
-    [System.IO.Compression.ZipFile]::CreateFromDirectory($dist, $zip)
-    az webapp deploy --subscription $subscription `
-        --resource-group $resourceGroup --name m3u-split `
-        --src-path $zip --type zip --timeout 600000 `
-        --output json --only-show-errors
-    if ($LASTEXITCODE -ne 0) {
-        throw 'The UI deployment failed.'
-    }
-}
-finally {
-    if (Test-Path -LiteralPath $zip) {
-        Remove-Item -LiteralPath $zip
-    }
-    Remove-Item -LiteralPath $dist -Recurse
-    Set-Location ..
-}
+.\scripts\deploy-ui.ps1 @target -WhatIf
+.\scripts\deploy-ui.ps1 @target
 ```
 
-The command shell preserves the Vite arguments on Windows.
-The build runs `tsc -b` and `vite build --base /`.
-Vite writes both `index.html` and `auth.html` at the app root.
+`-WhatIf` checks the Azure target without a build or deployment.
+Use Node.js and npm for the UI build.
+The script runs `npm ci`, `tsc -b`, and `vite build --base /`.
+It puts both entry pages and their assets at the zip root.
+It deploys the zip with Microsoft Entra authentication.
+It removes its temporary build and zip files, also after an error.
+
+The script rejects local `.env*` files, except `.env.example`.
+It ignores inherited values of the four online variables.
+Without online parameters, it builds the local-only UI.
+It restores the caller's variables and current directory after the build.
 The default build still uses `/m3u-split/` for GitHub Pages.
 Do not commit `node_modules` or `dist`.
 
@@ -283,7 +248,17 @@ Do not commit `node_modules` or `dist`.
 Register the callback on the SPA platform, not the Web platform.
 Do not add a `localhost` callback to the production SPA.
 Configure the API and CORS before you supply the four public values.
-Replace the four empty assignments above with those values.
+Pass all four public values to the UI script.
+Do not pass only some of these values.
+
+```powershell
+.\scripts\deploy-ui.ps1 @target `
+    -TenantId '<TENANT-ID>' `
+    -SpaClientId '<SPA-APPLICATION-CLIENT-ID>' `
+    -ApiScope 'api://<API-APPLICATION-CLIENT-ID>/access_as_user' `
+    -OnlineApiBaseUrl 'https://<FUNCTION-APP-HOST>/api/'
+```
+
 Rebuild and deploy the UI after the API deployment.
 App settings alone cannot change the compiled client.
 
@@ -393,63 +368,35 @@ Azure can take up to 10 minutes to apply new storage roles.
 
 ### Publish and deploy the API package
 
-Keep `$subscription`, `$group`, and `$app` from the approved resource deployment.
-The API targets .NET 9 and runs on Linux x64.
-These commands deploy only compiled API files.
-They do not deploy the UI or run tests.
+Use `scripts\deploy-api.ps1` to deploy to the current Function App.
+Use PowerShell 7 from the repository root.
+The script selects a stable SDK that matches the project framework.
+Install that SDK before deployment if it is absent.
+The script publishes for Linux x64.
+It does not deploy the UI, change app settings, or run tests.
 
 ```powershell
-$ErrorActionPreference = 'Stop'
-$work = Join-Path ([System.IO.Path]::GetTempPath()) (
-    'function-api-' + [guid]::NewGuid().ToString('N')
-)
-$publish = Join-Path $work 'publish'
-$zip = Join-Path $work 'function-api.zip'
-
-try {
-    dotnet publish .\api\api.csproj --configuration Release `
-        --runtime linux-x64 --self-contained false --output $publish
-    if ($LASTEXITCODE -ne 0) {
-        throw 'The API publish failed.'
-    }
-
-    $functions = @(
-        Get-Content -LiteralPath (Join-Path $publish 'functions.metadata') -Raw |
-            ConvertFrom-Json
-    )
-    if ($functions.Count -eq 0) {
-        throw 'The package has no function metadata.'
-    }
-    foreach ($function in $functions) {
-        if ($function.name -in @('Upload', 'Download')) {
-            throw 'The package has a legacy function.'
-        }
-        foreach ($binding in $function.bindings) {
-            if ($binding.type -eq 'httpTrigger' -and $binding.route -notmatch '^(online|feed)/') {
-                throw 'The package has an unsupported HTTP route.'
-            }
-        }
-    }
-
-    [System.IO.Compression.ZipFile]::CreateFromDirectory($publish, $zip)
-    az webapp deploy --subscription $subscription `
-        --resource-group $group --name $app --src-path $zip `
-        --type zip --restart true --timeout 600000 `
-        --output json --only-show-errors
-    if ($LASTEXITCODE -ne 0) {
-        throw 'The API deployment failed.'
-    }
+$target = @{
+    SubscriptionId = '<SUBSCRIPTION-ID>'
+    ResourceGroup = '<RESOURCE-GROUP>'
+    AppName = '<FUNCTION-APP-NAME>'
 }
-finally {
-    if (Test-Path -LiteralPath $work) {
-        Remove-Item -LiteralPath $work -Recurse
-    }
-}
+
+.\scripts\deploy-api.ps1 @target -WhatIf
+.\scripts\deploy-api.ps1 @target
 ```
 
-The zip holds `host.json` at its root and includes the hidden `.azurefunctions` folder.
-The project excludes local configuration from the publish output.
-The Azure CLI uses Microsoft Entra authentication.
+`-WhatIf` checks the Azure target without a publish or deployment.
+The script checks the runtime, Always On, and package mode.
+It rejects legacy functions, unsupported HTTP routes, and local configuration files.
+It includes `host.json`, `functions.metadata`, `worker.config.json`, and the hidden `.azurefunctions` folder.
+It puts the publish files at the zip root.
+It deploys with Microsoft Entra authentication and removes its temporary files.
+
+Both scripts check the subscription and app type before a build.
+The target must be a Linux app with HTTPS and disabled SCM basic authentication.
+They do not deploy the Bicep template or change identities, roles, or storage settings.
+The Azure CLI must already have a valid session.
 Keep SCM and FTP basic authentication disabled.
 Do not use an account key to bypass a storage access error.
 If Azure Policy denies a step, stop and report its name and effect.
