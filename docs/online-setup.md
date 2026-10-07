@@ -315,6 +315,12 @@ It does not change existing containers, account settings, or service retention s
 This option uses separate containers, not the separate accounts that the storage section recommends.
 Use it only with owner approval.
 
+The health check for host storage can call `ListContainers` every 30 seconds.
+Container-scoped roles deny this call.
+Logs and metrics can show HTTP 403 results.
+The functions continue to operate.
+Do not widen the roles for this check.
+
 Keep blob soft delete and version history off for playlist data.
 If the account enables either feature, Azure can retain deleted playlist data.
 Container soft delete affects whole containers, not the API's normal blob delete operations.
@@ -1522,7 +1528,7 @@ Such a change also affects its other apps.
 
 | Setting | Value |
 | --- | --- |
-| Linux runtime (`linuxFxVersion`) | `DOTNET-ISOLATED|9.0` |
+| Linux runtime (`linuxFxVersion`) | `DOTNET-ISOLATED\|9.0` |
 | `FUNCTIONS_WORKER_RUNTIME` | `dotnet-isolated` |
 | `FUNCTIONS_EXTENSION_VERSION` | `~4` |
 | Always On | `true` |
