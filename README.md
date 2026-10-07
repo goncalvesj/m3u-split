@@ -66,7 +66,10 @@ cost guards, and the API workflow. The workflow builds the API for pushes and
 pull requests to the `azure` branch. It deploys a push to `azure` after a
 reviewer approves the deployment.
 Before the first push of `azure`, add the `azure-functions` environment, its `azure` branch rule and a required reviewer.
-The Azure UI uses App Service, but the API has no live deployment.
+The UI uses App Service.
+The API now uses a Dedicated Linux plan with a system-assigned identity.
+Refer to [API on a Dedicated plan](docs/online-setup.md#api-on-a-dedicated-plan) for the template and local deployment commands.
+The API denies online access until it has valid Entra settings.
 Entra registrations and API CORS are future tasks.
 GitHub Pages keeps `master` as its source.
 The `azure` branch does not deploy to the old Static Web App.

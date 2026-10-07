@@ -287,11 +287,180 @@ Replace the four empty assignments above with those values.
 Rebuild and deploy the UI after the API deployment.
 App settings alone cannot change the compiled client.
 
+## API on a Dedicated plan
+
+The template at `infra\function-api.bicep` supports an existing Linux App Service plan.
+It does not change that plan or its other apps.
+It adds a Function App that uses an approved, existing storage account.
+The owner must approve the managed identity and its data access before deployment.
+Keep actual resource names and IDs in local values, not tracked files.
+
+### Storage and access
+
+- Use the plan region for the API.
+- Use the approved account for `AzureWebJobsStorage` and `OnlinePlaylistStorage`.
+- Make sure the account disables shared keys and anonymous blob access.
+- Make sure the account uses HTTPS only and TLS 1.2.
+- Give the API identity **Storage Blob Data Owner** on each of its two host containers.
+- Give it **Storage Blob Data Contributor** on each of its three data containers.
+- Give it **Storage Queue Data Contributor** on each of its four queues.
+- Scope each role to its container or queue, not the account, group, or subscription.
+
+The Function App uses a system-assigned identity.
+It does not use storage keys, SAS tokens, connection strings, or a separate identity resource.
+The template adds nine role assignments of three role types.
+
+It gives no access to legacy containers.
+It does not change existing containers, account settings, or service retention settings.
+This option uses separate containers, not the separate accounts that the storage section recommends.
+Use it only with owner approval.
+
+Keep blob soft delete and version history off for playlist data.
+If the account enables either feature, Azure can retain deleted playlist data.
+Container soft delete affects whole containers, not the API's normal blob delete operations.
+An account in another region can add network cost and delay.
+
+| App setting | Initial value |
+| --- | --- |
+| `AzureWebJobsStorage__accountName` | `<STORAGE-ACCOUNT>` |
+| `AzureWebJobsStorage__credential` | `managedidentity` |
+| `OnlinePlaylistStorage__blobServiceUri` | `https://<STORAGE-ACCOUNT>.blob.core.windows.net/` |
+| `OnlinePlaylistStorage__queueServiceUri` | `https://<STORAGE-ACCOUNT>.queue.core.windows.net/` |
+| `OnlinePlaylistStorage__credential` | `managedidentity` |
+
+Use the system-assigned identity for both connections.
+Do not set `__clientId` for these connections.
+Do not set the key-based `AzureWebJobsStorage` or `OnlinePlaylistStorage` values.
+Do not set `WEBSITE_CONTENTAZUREFILECONNECTIONSTRING` or `WEBSITE_CONTENTSHARE` on this Dedicated app.
+
+The template adds two private host containers, three private data containers, and four queues.
+Their names match the API code.
+It does not add Application Insights, a Log Analytics workspace, or an alert.
+Entra registrations, the account allowlist, API CORS, and the UI build values remain separate tasks.
+
+### First resource deployment
+
+Use PowerShell 7 from the repository root.
+Supply the approved values in place of these placeholders.
+Make sure the selected plan supports Linux and Always On.
+Use the storage account that the owner approved.
+
+```powershell
+$subscription = '<SUBSCRIPTION-ID>'
+$group = '<RESOURCE-GROUP>'
+$app = '<FUNCTION-APP-NAME>'
+$parameters = @(
+    "functionAppName=$app"
+    'appServicePlanName=<APP-SERVICE-PLAN>'
+    'location=<PLAN-REGION>'
+    'storageAccountName=<STORAGE-ACCOUNT>'
+)
+
+az deployment group what-if --subscription $subscription `
+    --resource-group $group --mode Incremental `
+    --template-file .\infra\function-api.bicep `
+    --parameters @parameters --result-format ResourceIdOnly
+if ($LASTEXITCODE -ne 0) {
+    throw 'The resource preview failed.'
+}
+```
+
+Examine the preview before the owner approves deployment.
+It must not change or delete an existing app, plan, account, or legacy container.
+Run this next command only after that approval.
+
+```powershell
+az deployment group create --subscription $subscription `
+    --resource-group $group --mode Incremental `
+    --template-file .\infra\function-api.bicep --parameters @parameters `
+    --query properties.provisioningState --output tsv
+if ($LASTEXITCODE -ne 0) {
+    throw 'The resource deployment failed.'
+}
+```
+
+Use this template for the first resource deployment only.
+It supplies the initial app settings.
+A later template deployment can replace settings that you add manually.
+Deploy later code updates with the package commands below.
+Azure can take up to 10 minutes to apply new storage roles.
+
+### Publish and deploy the API package
+
+Keep `$subscription`, `$group`, and `$app` from the approved resource deployment.
+The API targets .NET 9 and runs on Linux x64.
+These commands deploy only compiled API files.
+They do not deploy the UI or run tests.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$work = Join-Path ([System.IO.Path]::GetTempPath()) (
+    'function-api-' + [guid]::NewGuid().ToString('N')
+)
+$publish = Join-Path $work 'publish'
+$zip = Join-Path $work 'function-api.zip'
+
+try {
+    dotnet publish .\api\api.csproj --configuration Release `
+        --runtime linux-x64 --self-contained false --output $publish
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The API publish failed.'
+    }
+
+    $functions = @(
+        Get-Content -LiteralPath (Join-Path $publish 'functions.metadata') -Raw |
+            ConvertFrom-Json
+    )
+    if ($functions.Count -eq 0) {
+        throw 'The package has no function metadata.'
+    }
+    foreach ($function in $functions) {
+        if ($function.name -in @('Upload', 'Download')) {
+            throw 'The package has a legacy function.'
+        }
+        foreach ($binding in $function.bindings) {
+            if ($binding.type -eq 'httpTrigger' -and $binding.route -notmatch '^(online|feed)/') {
+                throw 'The package has an unsupported HTTP route.'
+            }
+        }
+    }
+
+    [System.IO.Compression.ZipFile]::CreateFromDirectory($publish, $zip)
+    az webapp deploy --subscription $subscription `
+        --resource-group $group --name $app --src-path $zip `
+        --type zip --restart true --timeout 600000 `
+        --output json --only-show-errors
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The API deployment failed.'
+    }
+}
+finally {
+    if (Test-Path -LiteralPath $work) {
+        Remove-Item -LiteralPath $work -Recurse
+    }
+}
+```
+
+The zip holds `host.json` at its root and includes the hidden `.azurefunctions` folder.
+The project excludes local configuration from the publish output.
+The Azure CLI uses Microsoft Entra authentication.
+Keep SCM and FTP basic authentication disabled.
+Do not use an account key to bypass a storage access error.
+If Azure Policy denies a step, stop and report its name and effect.
+
+Without valid `OnlineAuth__*` values, protected routes send `503 online_not_configured`.
+TV links send `503 feeds_not_configured`.
+Do not interpret these responses as a successful online setup.
+After Entra and CORS setup, set `VITE_ONLINE_API_BASE_URL` to `https://<FUNCTION-APP-HOST>/api/`.
+Supply the other three public values and rebuild the UI.
+
 ## Standalone Function App settings
 
 Use an approved, separately provisioned **Azure Functions v4, .NET 9,
 isolated-worker** Function App. The existing `net9.0` target remains unchanged.
-Use the **Flex Consumption** plan, with the settings in
+Use an approved Dedicated App Service plan or Flex Consumption.
+For a Dedicated plan, refer to [API on a Dedicated plan](#api-on-a-dedicated-plan).
+For Flex Consumption, refer to
 [Hosting plan and cost guards](#hosting-plan-and-cost-guards). Microsoft
 support for .NET 9 stops on 10 November 2026. Move the API to .NET 10 before
 that date. This is not an Azure Static Web Apps managed API.
@@ -532,8 +701,11 @@ string, if you must use one, only in server settings or Key Vault.
 
 ### App-data storage and roles
 
-Use a **dedicated general-purpose v2 storage account** for playlist data,
-separate from the Functions host storage. The code uses these resources:
+Use a **dedicated general-purpose v2 storage account** for new deployments.
+Keep it separate from the host account.
+The owner can approve reuse of an existing account.
+Refer to [Storage and access](#storage-and-access) for that option.
+The code uses these resources:
 
 | Resource | Name | Contents |
 | --- | --- | --- |
@@ -560,6 +732,9 @@ app-data storage account only:
 Role assignments can take several minutes to apply. Host storage
 (`AzureWebJobsStorage`) needs its own roles; follow the hosting plan's
 documentation for those.
+
+For owner-approved account reuse, scope these roles to the API containers and queues.
+Do not change existing account settings without owner approval.
 
 ### Lifecycle, limits and retention
 
@@ -1337,10 +1512,36 @@ The `OnlineFeed` function accepts requests without sign-in. A flood of
 requests to it can increase the cost of the Function App. Use these settings
 to keep the cost low and to get a warning quickly.
 
+### Dedicated plan settings
+
+Keep Always On enabled for the API.
+Its four queue triggers and three hourly timers must operate without HTTP requests.
+The timers delete expired data, which can contain provider credentials.
+Do not change a shared plan to control this API's cost.
+Such a change also affects its other apps.
+
+| Setting | Value |
+| --- | --- |
+| Linux runtime (`linuxFxVersion`) | `DOTNET-ISOLATED|9.0` |
+| `FUNCTIONS_WORKER_RUNTIME` | `dotnet-isolated` |
+| `FUNCTIONS_EXTENSION_VERSION` | `~4` |
+| Always On | `true` |
+| `WEBSITE_RUN_FROM_PACKAGE` | `1` |
+| `SCM_DO_BUILD_DURING_DEPLOYMENT` | `false` |
+| Minimum TLS for the app and SCM | `1.2` |
+| HTTPS only and HTTP/2 | Enabled |
+| FTP, FTPS, and basic authentication for SCM and FTP | Disabled |
+| ARR affinity | Disabled |
+
+The existing plan supplies the compute capacity.
+Storage transactions and network traffic can add cost.
+Flex Consumption memory and scale limits do not apply to a Dedicated plan.
+Use an App Service metric such as requests or CPU for a Dedicated plan alert.
+`OnDemandFunctionExecutionCount` below applies to Flex Consumption.
+
 ### Flex Consumption settings
 
-Use the **Flex Consumption** plan (Linux) for the Function App. Use these
-values:
+Use these values if the Function App uses **Flex Consumption** (Linux):
 
 | Setting | Value | Reason |
 | --- | --- | --- |
@@ -1407,7 +1608,9 @@ these steps:
 1. Change the target framework of `api` and `api.tests` to `net10.0`. Use
    package versions that support .NET 10.
 2. Change `dotnet-version` in `deploy-api.yml` to `10.0.x`.
-3. Change the runtime version in `functionAppConfig.runtime` to `10.0`.
+3. For Flex Consumption, change the version in `functionAppConfig.runtime` to `10.0`.
+   For a Dedicated Linux plan, set `linuxFxVersion` to `DOTNET-ISOLATED|10.0`.
+   Change the same value in `infra\function-api.bicep` for future deployments.
 4. Push the change to `azure` and approve the deployment.
 
 ## Independent deployment
