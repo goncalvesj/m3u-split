@@ -1,7 +1,7 @@
 # m3u-split
 
 Split and manage M3U playlists with a React + Vite UI on Azure App Service or GitHub Pages.
-The optional API uses .NET 9 Azure Functions.
+The optional API uses .NET 10 Azure Functions.
 
 ## Highlights
 
@@ -14,7 +14,7 @@ The optional API uses .NET 9 Azure Functions.
 ## Repo layout
 
 - `client/` – React + TypeScript app (Vite)
-- `api/` – .NET 9 isolated-worker Azure Functions v4 API
+- `api/` – .NET 10 isolated-worker Azure Functions v4 API
 - `api.tests/` – API token-validation and account-authorization regression tests
 
 ## Optional online sign-in, URL import and saved profiles

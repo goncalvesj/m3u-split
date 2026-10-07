@@ -77,7 +77,7 @@ resource functionApi 'Microsoft.Web/sites@2025-03-01' = {
     httpsOnly: true
     clientAffinityEnabled: false
     siteConfig: {
-      linuxFxVersion: 'DOTNET-ISOLATED|9.0'
+      linuxFxVersion: 'DOTNET-ISOLATED|10.0'
       alwaysOn: true
       ftpsState: 'Disabled'
       http20Enabled: true

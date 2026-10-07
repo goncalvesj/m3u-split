@@ -462,14 +462,14 @@ Supply the other three public values and rebuild the UI.
 
 ## Standalone Function App settings
 
-Use an approved, separately provisioned **Azure Functions v4, .NET 9,
-isolated-worker** Function App. The existing `net9.0` target remains unchanged.
+Use an approved, separately provisioned **Azure Functions v4, .NET 10,
+isolated-worker** Function App. The API targets `net10.0`.
 Use an approved Dedicated App Service plan or Flex Consumption.
 For a Dedicated plan, refer to [API on a Dedicated plan](#api-on-a-dedicated-plan).
 For Flex Consumption, refer to
-[Hosting plan and cost guards](#hosting-plan-and-cost-guards). Microsoft
-support for .NET 9 stops on 10 November 2026. Move the API to .NET 10 before
-that date. This is not an Azure Static Web Apps managed API.
+[Hosting plan and cost guards](#hosting-plan-and-cost-guards).
+Microsoft support for .NET 10 stops on 14 November 2028.
+This is not an Azure Static Web Apps managed API.
 
 Set the following **Function App application settings**, never frontend
 variables. Double underscores are the .NET configuration section separator:
@@ -487,8 +487,8 @@ variables. Double underscores are the .NET configuration section separator:
 | `OnlinePlaylistStorage__queueServiceUri` | URL import: `https://<APP-DATA-ACCOUNT>.queue.core.windows.net` (see Phase 2) |
 
 On Flex Consumption, do not set `FUNCTIONS_WORKER_RUNTIME` or
-`FUNCTIONS_EXTENSION_VERSION`. Set the runtime when you create the app, in
-`functionAppConfig.runtime` (name `dotnet-isolated`, version `9.0`). The
+`FUNCTIONS_EXTENSION_VERSION`. Set the runtime when you make the app, in
+`functionAppConfig.runtime` (name `dotnet-isolated`, version `10.0`). The
 platform sets the host version. The deployment workflow reads the runtime from
 `functionAppConfig.runtime`, and reads `FUNCTIONS_WORKER_RUNTIME` only on other
 plans. Local Core Tools still reads `FUNCTIONS_WORKER_RUNTIME` from
@@ -1455,7 +1455,7 @@ requests to the API, stop the Function App.
 
 ## Local development
 
-Prerequisites: Node.js 22 or a compatible LTS, .NET 9 SDK/runtime, Azure Functions
+Prerequisites: Node.js 22 or a compatible LTS, .NET 10 SDK/runtime, Azure Functions
 Core Tools v4 and, for the example storage settings, an already running Azurite
 emulator with its Blob and Queue services. Install/start only the tools and
 services you have approved.
@@ -1528,7 +1528,7 @@ Such a change also affects its other apps.
 
 | Setting | Value |
 | --- | --- |
-| Linux runtime (`linuxFxVersion`) | `DOTNET-ISOLATED\|9.0` |
+| Linux runtime (`linuxFxVersion`) | `DOTNET-ISOLATED\|10.0` |
 | `FUNCTIONS_WORKER_RUNTIME` | `dotnet-isolated` |
 | `FUNCTIONS_EXTENSION_VERSION` | `~4` |
 | Always On | `true` |
@@ -1608,16 +1608,14 @@ them adds cost. This setup does not use them.
 
 ### Runtime support
 
-Microsoft support for .NET 9 stops on 10 November 2026. Before that date, do
-these steps:
+The API and its test project target `net10.0`.
+The API uses stable package versions. The workflow uses the .NET `10.0.x` SDK.
+Microsoft support for .NET 10 LTS stops on 14 November 2028.
 
-1. Change the target framework of `api` and `api.tests` to `net10.0`. Use
-   package versions that support .NET 10.
-2. Change `dotnet-version` in `deploy-api.yml` to `10.0.x`.
-3. For Flex Consumption, change the version in `functionAppConfig.runtime` to `10.0`.
-   For a Dedicated Linux plan, set `linuxFxVersion` to `DOTNET-ISOLATED|10.0`.
-   Change the same value in `infra\function-api.bicep` for future deployments.
-4. Push the change to `azure` and approve the deployment.
+- For Flex Consumption, use `functionAppConfig.runtime` with name `dotnet-isolated` and version `10.0`.
+- For a Dedicated Linux plan, use `DOTNET-ISOLATED|10.0` for `linuxFxVersion`.
+- The template `infra\function-api.bicep` uses the .NET 10 Dedicated runtime.
+- An existing .NET 9 app stays unchanged until the owner approves its runtime change and package deployment.
 
 ## Independent deployment
 
