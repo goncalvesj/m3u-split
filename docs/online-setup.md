@@ -1444,7 +1444,7 @@ them adds cost. This setup does not use them.
 
 ### Runtime support
 
-The API and its test project target `net10.0`.
+The API targets `net10.0`.
 The API uses stable package versions. The workflow uses the .NET `10.0.x` SDK.
 Microsoft support for .NET 10 LTS stops on 14 November 2028.
 
@@ -1616,20 +1616,15 @@ these guard responses before anything else, and then the codes listed in
 same, followed by the codes listed in [TV link endpoints](#tv-link-endpoints);
 the TV link itself (`OnlineFeed`) never returns guard responses.
 
-Local regression checks:
+Local checks:
 
 ```powershell
-npm --prefix .\client test
 npm --prefix .\client run build
 npm --prefix .\client run lint
-dotnet test .\api.tests\api.tests.csproj
 dotnet build .\api\api.csproj
 ```
 
-Frontend tests simulate MSAL interactions and HTTP responses while exercising
-the local workflow; backend tests sign tokens with local test keys and validate
-them through the production guard. They do **not** prove a live tenant is
-configured or that a hosted deployment works.
+These checks do **not** show that the tenant and the hosted deployment operate correctly.
 
 After the real setup, verify live sign-in/callback and sign-out in both a normal
 browser and the installed PWA with a local file already selected. Confirm the

@@ -15,7 +15,6 @@ The optional API uses .NET 10 Azure Functions.
 
 - `client/` – React + TypeScript app (Vite)
 - `api/` – .NET 10 isolated-worker Azure Functions v4 API
-- `api.tests/` – API token-validation and account-authorization regression tests
 
 ## Online sign-in and saved profiles
 
@@ -115,9 +114,4 @@ Invalid saved data is not overwritten unless you explicitly save a new selection
 - `npm run dev` – start Vite dev server
 - `npm run build` – typecheck + build
 - `npm run lint` – run ESLint
-- `npm test` – run local workflow, favourites, and online authentication regression tests
 - `npm run preview` – preview production build
-
-From the repository root, run `dotnet test .\api.tests\api.tests.csproj` for the
-backend boundary tests. These tests use locally generated signing keys, not live
-Microsoft accounts.
