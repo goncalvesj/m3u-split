@@ -4,8 +4,8 @@ using Microsoft.Extensions.Configuration;
 namespace api;
 
 /// <summary>
-/// Validated settings for saved online profiles. Download limits (size, timeouts, user agent) are
-/// shared with URL import and come from <see cref="OnlineImportSettings"/>.
+/// Validated settings for saved online profiles. Download limits (size, timeouts, user agent)
+/// come from <see cref="OnlineImportSettings"/>.
 /// </summary>
 public sealed record OnlineProfileSettings(int MaxProfilesPerUser)
 {

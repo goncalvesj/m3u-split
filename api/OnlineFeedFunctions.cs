@@ -32,7 +32,7 @@ public sealed class OnlineFeedFunctions(
             return auth.Denied;
         if (!feeds.IsConfigured)
             return NotConfigured();
-        if (!OnlineImportIds.TryParse(profileId, out var id))
+        if (!OnlineIds.TryParse(profileId, out var id))
             return ProfileNotFound();
 
         try
@@ -63,7 +63,7 @@ public sealed class OnlineFeedFunctions(
             return auth.Denied;
         if (!feeds.IsConfigured)
             return NotConfigured();
-        if (!OnlineImportIds.TryParse(profileId, out var id))
+        if (!OnlineIds.TryParse(profileId, out var id))
             return ProfileNotFound();
 
         try
@@ -103,7 +103,7 @@ public sealed class OnlineFeedFunctions(
             return auth.Denied;
         if (!feeds.IsConfigured)
             return NotConfigured();
-        if (!OnlineImportIds.TryParse(profileId, out var id))
+        if (!OnlineIds.TryParse(profileId, out var id))
             return ProfileNotFound();
 
         try
@@ -139,7 +139,7 @@ public sealed class OnlineFeedFunctions(
             return auth.Denied;
         if (!feeds.IsConfigured)
             return NotConfigured();
-        if (!OnlineImportIds.TryParse(profileId, out var id))
+        if (!OnlineIds.TryParse(profileId, out var id))
             return ProfileNotFound();
 
         try

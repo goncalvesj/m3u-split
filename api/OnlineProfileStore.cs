@@ -70,7 +70,7 @@ public sealed class OnlineProfileRecord
     public Guid? PreviousOutputId { get; set; }
 
     [JsonIgnore]
-    public OnlineImportOwner Owner => new(TenantId, ObjectId);
+    public OnlineOwner Owner => new(TenantId, ObjectId);
 }
 
 /// <summary>The latest refresh of a profile.</summary>
@@ -134,7 +134,7 @@ public sealed record OnlineProfileRefreshMessage(int V, Guid TenantId, Guid Obje
     public const int CurrentVersion = 1;
 
     [JsonIgnore]
-    public OnlineImportOwner Owner => new(TenantId, ObjectId);
+    public OnlineOwner Owner => new(TenantId, ObjectId);
 
     [JsonIgnore]
     public bool IsValid =>
@@ -153,8 +153,8 @@ public sealed class OnlineProfileCleanupResult
 }
 
 /// <summary>
-/// Blob and queue access for saved profiles. Profiles live in their own private container, separate
-/// from URL imports, under <c>{tenantId}/{objectId}/{profileId}/</c>:
+/// Blob and queue access for saved profiles. Profiles live in their own private container, under
+/// <c>{tenantId}/{objectId}/{profileId}/</c>:
 /// <c>profile.json</c> (the record, updated only with ETag conditions), <c>categories.json</c> (the
 /// latest index), <c>outputs/{outputId}.m3u</c> (immutable output versions) and
 /// <c>work/{refreshId}.m3u</c> (the temporary download of one refresh).
@@ -190,7 +190,7 @@ public sealed class OnlineProfileStore
         this.logger = logger;
     }
 
-    public static string ProfilePrefix(OnlineImportOwner owner, Guid profileId) => $"{owner.BlobPrefix}{profileId:D}/";
+    public static string ProfilePrefix(OnlineOwner owner, Guid profileId) => $"{owner.BlobPrefix}{profileId:D}/";
 
     /// <summary>Creates the private container and both queues once per process.</summary>
     public async Task EnsureCreatedAsync(CancellationToken cancellationToken)
@@ -231,7 +231,7 @@ public sealed class OnlineProfileStore
         return new StoredProfile(record, response.Value.ETag);
     }
 
-    public async Task<StoredProfile?> GetAsync(OnlineImportOwner owner, Guid profileId, CancellationToken cancellationToken)
+    public async Task<StoredProfile?> GetAsync(OnlineOwner owner, Guid profileId, CancellationToken cancellationToken)
     {
         BlobDownloadResult result;
         try
@@ -284,11 +284,11 @@ public sealed class OnlineProfileStore
         }
     }
 
-    public async Task<bool> RecordExistsAsync(OnlineImportOwner owner, Guid profileId, CancellationToken cancellationToken) =>
+    public async Task<bool> RecordExistsAsync(OnlineOwner owner, Guid profileId, CancellationToken cancellationToken) =>
         (await RecordBlob(owner, profileId).ExistsAsync(cancellationToken)).Value;
 
     /// <summary>Lists the IDs of the owner's profiles (every <c>{profileId}/profile.json</c> under the owner prefix).</summary>
-    public async Task<List<Guid>> ListIdsAsync(OnlineImportOwner owner, CancellationToken cancellationToken)
+    public async Task<List<Guid>> ListIdsAsync(OnlineOwner owner, CancellationToken cancellationToken)
     {
         var prefix = owner.BlobPrefix;
         var ids = new List<Guid>();
@@ -297,7 +297,7 @@ public sealed class OnlineProfileStore
             var relative = item.Name[prefix.Length..];
             var slash = relative.IndexOf('/');
             if (slash > 0 && relative[(slash + 1)..] == RecordFile &&
-                OnlineImportIds.TryParse(relative[..slash], out var id))
+                OnlineIds.TryParse(relative[..slash], out var id))
                 ids.Add(id);
         }
 
@@ -309,7 +309,7 @@ public sealed class OnlineProfileStore
     /// the profile prefix, including blobs that later features add there.
     /// </summary>
     /// <returns>True when the record existed.</returns>
-    public async Task<bool> DeleteAsync(OnlineImportOwner owner, Guid profileId, CancellationToken cancellationToken)
+    public async Task<bool> DeleteAsync(OnlineOwner owner, Guid profileId, CancellationToken cancellationToken)
     {
         var prefix = ProfilePrefix(owner, profileId);
         var existed = await DeleteBlobAsync(prefix + RecordFile, cancellationToken);
@@ -319,14 +319,14 @@ public sealed class OnlineProfileStore
     }
 
     public async Task WriteCategoriesAsync(
-        OnlineImportOwner owner, Guid profileId, OnlineProfileCategoryIndex index, CancellationToken cancellationToken) =>
+        OnlineOwner owner, Guid profileId, OnlineProfileCategoryIndex index, CancellationToken cancellationToken) =>
         await CategoriesBlob(owner, profileId).UploadAsync(
             BinaryData.FromObjectAsJson(index, Json),
             new BlobUploadOptions { HttpHeaders = new BlobHttpHeaders { ContentType = JsonContentType } },
             cancellationToken);
 
     public async Task<OnlineProfileCategoryIndex?> GetCategoriesAsync(
-        OnlineImportOwner owner, Guid profileId, CancellationToken cancellationToken)
+        OnlineOwner owner, Guid profileId, CancellationToken cancellationToken)
     {
         BlobDownloadResult result;
         try
@@ -358,7 +358,7 @@ public sealed class OnlineProfileStore
         return index;
     }
 
-    public async Task CreateWorkAsync(OnlineImportOwner owner, Guid profileId, Guid refreshId, CancellationToken cancellationToken) =>
+    public async Task CreateWorkAsync(OnlineOwner owner, Guid profileId, Guid refreshId, CancellationToken cancellationToken) =>
         await WorkBlob(owner, profileId, refreshId).CreateAsync(
             new AppendBlobCreateOptions { HttpHeaders = new BlobHttpHeaders { ContentType = PlaylistContentType } },
             cancellationToken);
@@ -368,26 +368,26 @@ public sealed class OnlineProfileStore
     /// instead of silently recreating it.
     /// </summary>
     public async Task AppendWorkAsync(
-        OnlineImportOwner owner, Guid profileId, Guid refreshId, byte[] buffer, int count, CancellationToken cancellationToken)
+        OnlineOwner owner, Guid profileId, Guid refreshId, byte[] buffer, int count, CancellationToken cancellationToken)
     {
         using var content = new MemoryStream(buffer, 0, count, writable: false);
         await WorkBlob(owner, profileId, refreshId).AppendBlockAsync(content, new AppendBlobAppendBlockOptions(), cancellationToken);
     }
 
-    public Task<Stream> OpenWorkAsync(OnlineImportOwner owner, Guid profileId, Guid refreshId, CancellationToken cancellationToken) =>
+    public Task<Stream> OpenWorkAsync(OnlineOwner owner, Guid profileId, Guid refreshId, CancellationToken cancellationToken) =>
         WorkBlob(owner, profileId, refreshId).OpenReadAsync(new BlobOpenReadOptions(allowModifications: false), cancellationToken);
 
-    public Task<bool> DeleteWorkAsync(OnlineImportOwner owner, Guid profileId, Guid refreshId, CancellationToken cancellationToken) =>
+    public Task<bool> DeleteWorkAsync(OnlineOwner owner, Guid profileId, Guid refreshId, CancellationToken cancellationToken) =>
         DeleteBlobAsync(WorkName(owner, profileId, refreshId), cancellationToken);
 
     /// <summary>Starts writing a new output version; nothing is visible until <see cref="OnlineProfileOutputWriter.CommitAsync"/>.</summary>
     public OnlineProfileOutputWriter CreateOutputWriter(
-        OnlineImportOwner owner, Guid profileId, Guid outputId, Func<CancellationToken, Task>? onBlockStaged = null) =>
+        OnlineOwner owner, Guid profileId, Guid outputId, Func<CancellationToken, Task>? onBlockStaged = null) =>
         new(container.GetBlockBlobClient(OutputName(owner, profileId, outputId)), onBlockStaged);
 
     /// <summary>Opens an output version for streaming, or returns null when it does not exist.</summary>
     public async Task<BlobDownloadStreamingResult?> OpenOutputAsync(
-        OnlineImportOwner owner, Guid profileId, Guid outputId, CancellationToken cancellationToken)
+        OnlineOwner owner, Guid profileId, Guid outputId, CancellationToken cancellationToken)
     {
         try
         {
@@ -401,7 +401,7 @@ public sealed class OnlineProfileStore
         }
     }
 
-    public Task<bool> DeleteOutputAsync(OnlineImportOwner owner, Guid profileId, Guid outputId, CancellationToken cancellationToken) =>
+    public Task<bool> DeleteOutputAsync(OnlineOwner owner, Guid profileId, Guid outputId, CancellationToken cancellationToken) =>
         DeleteBlobAsync(OutputName(owner, profileId, outputId), cancellationToken);
 
     public async Task EnqueueRefreshAsync(OnlineProfileRefreshMessage message, CancellationToken cancellationToken) =>
@@ -508,24 +508,24 @@ public sealed class OnlineProfileStore
         }
     }
 
-    private static bool TryParseLocation(string name, out OnlineImportOwner owner, out Guid profileId, out string prefix)
+    private static bool TryParseLocation(string name, out OnlineOwner owner, out Guid profileId, out string prefix)
     {
         owner = default;
         profileId = Guid.Empty;
         prefix = "";
         var parts = name.Split('/', 4);
         if (parts.Length != 4 || parts[3].Length == 0 ||
-            !OnlineImportIds.TryParse(parts[0], out var tenantId) ||
-            !OnlineImportIds.TryParse(parts[1], out var objectId) ||
-            !OnlineImportIds.TryParse(parts[2], out profileId))
+            !OnlineIds.TryParse(parts[0], out var tenantId) ||
+            !OnlineIds.TryParse(parts[1], out var objectId) ||
+            !OnlineIds.TryParse(parts[2], out profileId))
             return false;
 
-        owner = new OnlineImportOwner(tenantId, objectId);
+        owner = new OnlineOwner(tenantId, objectId);
         prefix = ProfilePrefix(owner, profileId);
         return true;
     }
 
-    private static bool IsValid([NotNullWhen(true)] OnlineProfileRecord? record, OnlineImportOwner owner, Guid profileId)
+    private static bool IsValid([NotNullWhen(true)] OnlineProfileRecord? record, OnlineOwner owner, Guid profileId)
     {
         if (record is not
             {
@@ -598,24 +598,24 @@ public sealed class OnlineProfileStore
         return response.Value;
     }
 
-    private BlobClient RecordBlob(OnlineImportOwner owner, Guid profileId) =>
+    private BlobClient RecordBlob(OnlineOwner owner, Guid profileId) =>
         container.GetBlobClient(ProfilePrefix(owner, profileId) + RecordFile);
 
-    private BlobClient CategoriesBlob(OnlineImportOwner owner, Guid profileId) =>
+    private BlobClient CategoriesBlob(OnlineOwner owner, Guid profileId) =>
         container.GetBlobClient(ProfilePrefix(owner, profileId) + CategoriesFile);
 
-    private AppendBlobClient WorkBlob(OnlineImportOwner owner, Guid profileId, Guid refreshId) =>
+    private AppendBlobClient WorkBlob(OnlineOwner owner, Guid profileId, Guid refreshId) =>
         container.GetAppendBlobClient(WorkName(owner, profileId, refreshId));
 
-    private static string WorkName(OnlineImportOwner owner, Guid profileId, Guid refreshId) =>
+    private static string WorkName(OnlineOwner owner, Guid profileId, Guid refreshId) =>
         $"{ProfilePrefix(owner, profileId)}{WorkFolder}{refreshId:D}{PlaylistExtension}";
 
-    private static string OutputName(OnlineImportOwner owner, Guid profileId, Guid outputId) =>
+    private static string OutputName(OnlineOwner owner, Guid profileId, Guid outputId) =>
         $"{ProfilePrefix(owner, profileId)}{OutputsFolder}{outputId:D}{PlaylistExtension}";
 
-    private sealed class ProfileBlobs(OnlineImportOwner owner, Guid profileId, string prefix)
+    private sealed class ProfileBlobs(OnlineOwner owner, Guid profileId, string prefix)
     {
-        public OnlineImportOwner Owner { get; } = owner;
+        public OnlineOwner Owner { get; } = owner;
         public Guid ProfileId { get; } = profileId;
         public string Prefix { get; } = prefix;
         public List<BlobItem> Items { get; } = [];

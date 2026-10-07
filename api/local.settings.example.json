@@ -12,7 +12,6 @@
     "OnlineImport__MaxDownloadMiB": "300",
     "OnlineImport__DownloadTimeoutSeconds": "300",
     "OnlineImport__IdleTimeoutSeconds": "60",
-    "OnlineImport__RetentionHours": "24",
     "OnlineImport__UserAgent": "m3u-split/1.0",
     "OnlineProfiles__MaxProfilesPerUser": "10",
     "OnlineRateLimits__ApiRequestsPerMinute": "300",

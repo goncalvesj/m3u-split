@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace api;
 
-public readonly record struct OnlineHttpAuthorization(OnlineImportOwner Owner, IActionResult? Denied);
+public readonly record struct OnlineHttpAuthorization(OnlineOwner Owner, IActionResult? Denied);
 
 /// <summary>Response conventions shared by the online HTTP endpoints, matching OnlineSession.</summary>
 public static class OnlineHttp
@@ -21,7 +21,7 @@ public static class OnlineHttp
         NoStore(request);
         var result = await access.AuthorizeAsync(request, cancellationToken);
         if (result is AuthorizedOnlineUser allowed)
-            return new OnlineHttpAuthorization(OnlineImportOwner.From(allowed.Identity), null);
+            return new OnlineHttpAuthorization(OnlineOwner.From(allowed.Identity), null);
 
         var denied = (OnlineAccessDenied)result;
         if (denied.StatusCode == StatusCodes.Status401Unauthorized)

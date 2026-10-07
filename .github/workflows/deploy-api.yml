@@ -81,7 +81,7 @@ jobs:
           client-id: ${{ secrets.AZURE_DEPLOY_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      - name: Require configured auth and import storage
+      - name: Require configured auth and playlist storage
         shell: pwsh
         run: |
           $json = az functionapp config appsettings list --name $env:AZURE_FUNCTION_APP_NAME --resource-group $env:AZURE_RESOURCE_GROUP --output json
@@ -94,7 +94,7 @@ jobs:
           $hasStorageConnectionString = -not [string]::IsNullOrWhiteSpace($settings['OnlinePlaylistStorage'])
           $hasStorageIdentityUris = (-not [string]::IsNullOrWhiteSpace($settings['OnlinePlaylistStorage__blobServiceUri'])) -and (-not [string]::IsNullOrWhiteSpace($settings['OnlinePlaylistStorage__queueServiceUri']))
           if (-not ($hasStorageConnectionString -or $hasStorageIdentityUris)) {
-            throw 'Missing URL import storage: set OnlinePlaylistStorage__blobServiceUri and OnlinePlaylistStorage__queueServiceUri, or an OnlinePlaylistStorage connection string.'
+            throw 'Missing playlist storage: set OnlinePlaylistStorage__blobServiceUri and OnlinePlaylistStorage__queueServiceUri, or an OnlinePlaylistStorage connection string.'
           }
           $runtime = az resource show --resource-group $env:AZURE_RESOURCE_GROUP --name $env:AZURE_FUNCTION_APP_NAME --resource-type Microsoft.Web/sites --query properties.functionAppConfig.runtime.name --output tsv
           if ($LASTEXITCODE -ne 0) { throw 'Cannot read the Function App.' }

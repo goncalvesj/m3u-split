@@ -462,9 +462,9 @@ public sealed class OnlineProfileRefreshWorker(OnlineProfileService profiles, IL
             logger.LogError("Online profile {Operation} failed ({ExceptionType}).", operation, exception.GetType().Name);
     }
 
-    private sealed class RefreshRun(OnlineImportOwner owner, Guid profileId, Guid refreshId, StoredProfile stored)
+    private sealed class RefreshRun(OnlineOwner owner, Guid profileId, Guid refreshId, StoredProfile stored)
     {
-        public OnlineImportOwner Owner { get; } = owner;
+        public OnlineOwner Owner { get; } = owner;
         public Guid ProfileId { get; } = profileId;
         public Guid RefreshId { get; } = refreshId;
         /// <summary>The latest saved record and its ETag.</summary>

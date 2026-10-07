@@ -1,4 +1,4 @@
-# Online playlists: Microsoft sign-in, standalone Functions, URL import, saved profiles and TV links
+# Online playlists: Microsoft sign-in, standalone Functions, saved profiles and TV links
 
 ## What is ready
 
@@ -12,27 +12,19 @@ Saved profiles are available only when the online configuration is valid.
 Favourites keep the existing
 `m3u-split:favourites` key and exact category-name matching.
 
-Phase 1 added Microsoft sign-in/sign-out and `GET /api/online/session`. The
-endpoint returns `{ "tenantId": "...", "objectId": "...", "expiresAt": "..." }`
-after verifying authorization.
+The app has Microsoft sign-in and sign-out. The API has `GET /api/online/session`.
+This endpoint verifies authorization, then returns
+`{ "tenantId": "...", "objectId": "...", "expiresAt": "..." }`.
 
-Phase 2 adds **authenticated URL import** (see
-[Phase 2: authenticated URL import](#phase-2-authenticated-url-import)). After
-the API verifies access, the user pastes a provider playlist URL. The Function
-App, not the browser, downloads the playlist into private storage and lists its
-categories with channel counts. The user picks categories (search, select
-all/none, favourites) and downloads a **server-generated** filtered playlist.
-The full provider file is never sent to the browser.
-
-Phase 3 adds **saved profiles with one-click refresh** (see
-[Phase 3: saved profiles and one-click refresh](#phase-3-saved-profiles-and-one-click-refresh)).
+The app also has **saved profiles with one-click refresh** (see
+[Saved profiles and one-click refresh](#saved-profiles-and-one-click-refresh)).
 A profile is a name, a provider URL and a set of chosen categories, stored on
 the server. **Refresh** downloads the provider playlist again and regenerates
 the filtered playlist on the server; **Download latest** saves the most recent
 successful result at any time. A failed refresh keeps the last good playlist.
 
-Phase 4 adds **secret TV links** (see
-[Phase 4: secret TV links for Smart IPTV](#phase-4-secret-tv-links-for-smart-iptv)).
+The app also has **secret TV links** (see
+[Secret TV links for Smart IPTV](#secret-tv-links-for-smart-iptv)).
 Each saved profile can have one permanent, read-only link that Smart IPTV
 **My List** loads without sign-in. It always serves the profile's latest
 successful playlist, and its owner can copy, regenerate or revoke it while
@@ -281,13 +273,13 @@ Keep actual resource names and IDs in local values, not tracked files.
 - Make sure the account disables shared keys and anonymous blob access.
 - Make sure the account uses HTTPS only and TLS 1.2.
 - Give the API identity **Storage Blob Data Owner** on each of its two host containers.
-- Give it **Storage Blob Data Contributor** on each of its three data containers.
-- Give it **Storage Queue Data Contributor** on each of its four queues.
+- Give it **Storage Blob Data Contributor** on each of its two data containers.
+- Give it **Storage Queue Data Contributor** on each of its two queues.
 - Scope each role to its container or queue, not the account, group, or subscription.
 
 The Function App uses a system-assigned identity.
 It does not use storage keys, SAS tokens, connection strings, or a separate identity resource.
-The template adds nine role assignments of three role types.
+The template adds six role assignments of three role types.
 
 It gives no access to legacy containers.
 It does not change existing containers, account settings, or service retention settings.
@@ -318,7 +310,7 @@ Do not set `__clientId` for these connections.
 Do not set the key-based `AzureWebJobsStorage` or `OnlinePlaylistStorage` values.
 Do not set `WEBSITE_CONTENTAZUREFILECONNECTIONSTRING` or `WEBSITE_CONTENTSHARE` on this Dedicated app.
 
-The template adds two private host containers, three private data containers, and four queues.
+The template adds two private host containers, two private data containers, and two queues.
 Their names match the API code.
 It does not add Application Insights, a Log Analytics workspace, or an alert.
 Entra registrations, the account allowlist, API CORS, and the UI build values remain separate tasks.
@@ -438,8 +430,8 @@ variables. Double underscores are the .NET configuration section separator:
 | `OnlineAuth__SpaClientId` | The SPA Application (client) ID GUID; must differ from the API ID |
 | `OnlineAuth__RequiredScope` | `access_as_user` (short delegated scope name, not full URI) |
 | `OnlineAuth__AllowedObjectIds` | One or more user Object ID GUIDs in that tenant, comma-separated |
-| `OnlinePlaylistStorage__blobServiceUri` | URL import: `https://<APP-DATA-ACCOUNT>.blob.core.windows.net` (see Phase 2) |
-| `OnlinePlaylistStorage__queueServiceUri` | URL import: `https://<APP-DATA-ACCOUNT>.queue.core.windows.net` (see Phase 2) |
+| `OnlinePlaylistStorage__blobServiceUri` | Saved profiles and TV links: `https://<APP-DATA-ACCOUNT>.blob.core.windows.net` (see [App-data storage and roles](#app-data-storage-and-roles)) |
+| `OnlinePlaylistStorage__queueServiceUri` | Saved profiles and TV links: `https://<APP-DATA-ACCOUNT>.queue.core.windows.net` (see [App-data storage and roles](#app-data-storage-and-roles)) |
 
 On Flex Consumption, do not set `FUNCTIONS_WORKER_RUNTIME` or
 `FUNCTIONS_EXTENSION_VERSION`. Set the runtime when you make the app, in
@@ -454,18 +446,17 @@ invalid entry disables online access; valid entries are not silently accepted
 from an otherwise invalid list. Configuration is read by the worker; restart it
 after changing settings (Azure app-setting changes normally trigger restart).
 
-URL import also reads the optional `OnlineImport__*` limits and accepts a
-connection string instead of the two identity-based storage settings; see
-[Import settings](#import-settings). Missing or invalid import settings make
-the import endpoints answer `503 import_not_configured` and log the reason
-without secrets. The session endpoint does not depend on them. The import queue
-triggers need the same storage connection, so the Functions host reports errors
-for those functions until it is configured.
-
-Saved profiles use the same storage connection and `OnlineImport__*` download
-limits, plus the optional `OnlineProfiles__MaxProfilesPerUser`; see
-[Profile settings](#profile-settings). When any of them is missing or invalid,
-the profile endpoints answer `503 profiles_not_configured` instead.
+You can use a connection string instead of the two identity-based storage
+settings. Saved profiles also read the optional `OnlineImport__*` download
+limits and the optional `OnlineProfiles__MaxProfilesPerUser`. Refer to
+[Download and storage settings](#download-and-storage-settings) and
+[Profile settings](#profile-settings).
+If the storage settings are missing, or if one of these settings is not valid,
+the profile endpoints send `503 profiles_not_configured`.
+The log gives the reason without secrets.
+The session endpoint does not use these settings.
+The profile refresh queue triggers need the same storage connection.
+Until you set it, the Functions host reports errors for these functions.
 
 TV links need no settings of their own. They use the saved-profile
 configuration and the `OnlineAuth__*` settings; when either is missing or
@@ -484,9 +475,10 @@ The Functions host also needs its normal **host storage** configuration
 Prefer managed identity where supported; if a connection string is necessary,
 keep it only in server settings/Key Vault. Follow the selected plan's normal
 content/deployment-storage requirements. Host storage is infrastructure, not
-playlist storage: URL imports use the separate `OnlinePlaylistStorage`
-connection described in Phase 2, never `AzureWebJobsStorage`. The hourly import,
-profile and TV link cleanup timers use host storage only for the host's normal timer lock. The API
+playlist storage. Saved profiles and TV links use the separate
+`OnlinePlaylistStorage` connection, never `AzureWebJobsStorage`. Refer to
+[App-data storage and roles](#app-data-storage-and-roles). The hourly profile
+and TV link cleanup timers use host storage only for the host's normal timer lock. The API
 does not use the `UseBlobStorage`, `StorageConnectionString` and `FilePath`
 settings of the removed legacy functions. Remove these settings from the
 Function App.
@@ -494,11 +486,11 @@ Function App.
 The session function uses `AuthorizationLevel.Anonymous` **at the Function-key
 layer only** so a SPA need not embed a shared Function key. `OnlineSession.Run`
 unconditionally calls `OnlineAccess.AuthorizeAsync` before producing a
-successful response. The Phase 2 import endpoints, Phase 3 profile endpoints and Phase 4 TV link
+successful response. The profile endpoints and the TV link
 management endpoints follow the same pattern: each calls the guard before any other work, maps denials identically and derives
 data ownership only from the validated `tid`/`oid`. Future online functions
 must do the same; copying the anonymous trigger without the guard would
-be unsafe. The one deliberate exception is the Phase 4 `OnlineFeed` function,
+be unsafe. The one deliberate exception is the `OnlineFeed` function,
 which serves a TV link to Smart IPTV without sign-in and is authorized by the
 secret token in its URL instead; see [TV link security](#tv-link-security).
 This implementation does not rely on unsupported `[Authorize]`
@@ -532,10 +524,9 @@ development uses the local Core Tools host and its own CORS setting.
 
 Leave **Access-Control-Allow-Credentials disabled**. The Functions host handles
 OPTIONS preflight for the `Authorization` and `Content-Type` request headers and
-for the `POST` and `DELETE` methods used by URL import and saved profiles; no
-extra CORS setting is needed for them. Saved profiles use only `GET`, `POST` and
-`DELETE` with these same two request headers, so the CORS configuration does not
-change. Do not add a second conflicting ASP.NET CORS implementation or
+for the `POST` and `DELETE` methods. The saved profile endpoints and the TV link
+owner endpoints use only `GET`, `POST` and `DELETE` with these two request
+headers. Thus, they need no extra CORS setting. Do not add a second conflicting ASP.NET CORS implementation or
 a wildcard header inside the function. Platform CORS cannot expose response
 headers such as `Content-Disposition` to the page, so the browser chooses the
 downloaded file name itself.
@@ -544,104 +535,22 @@ For local Core Tools, `local.settings.example.json` sets the local origin
 CORS is not an account restriction: direct HTTP clients still need a valid
 access token and an allowed identity.
 
-## Phase 2: authenticated URL import
+## Provider downloads and playlist storage
 
-URL import runs in the same standalone Function App. The browser sends the
-provider URL once. The server downloads, stores and filters the playlist and
-returns only progress, category names with channel counts and the filtered
-result. The full provider file never reaches the browser or the TV.
+Saved profiles download provider playlists with the rules in this section.
+Saved profiles and TV links keep their data in the same app-data storage
+account. The server downloads and filters the provider playlist. The full
+provider file does not go to the browser or the TV.
 
-1. `POST /api/online/imports` validates the URL, stores a private import
-   record, queues a message that holds **only IDs** (never the URL) and returns
-   `202 Accepted` with the import status.
-2. The `OnlineImportWorker` queue trigger downloads the playlist with the
-   SSRF-safe fetcher and streams it into a private blob without buffering the
-   whole file. It fails with `not_m3u` unless the first non-empty line is
-   `#EXTM3U`, then stream-parses the stored copy into a category index. It
-   saves progress (bytes, entries) every few seconds and always ends `ready` or
-   `failed`.
-3. The browser polls the status with backoff, then lists the categories with
-   search, select all/none and the same favourites as the local workflow.
-4. `POST .../playlist` streams the filtered M3U straight from blob storage. The
-   browser saves it as `channels.m3u`, like the local workflow.
-
-Category names are the exact `group-title="..."` values of `#EXTINF` lines:
-untrimmed, case-sensitive, in first-seen order, with empty values excluded.
-They match what the local parser shows, so favourites (exact names under
-`m3u-split:favourites`) work in both workflows. The filtered playlist starts
-with the source's `#EXTM3U` line, keeping attributes such as `url-tvg` or
-`x-tvg-url`. It then contains every complete entry in a selected category, in
-source order: the `#EXTINF` line (any duration), any directive lines before the
-URL (for example `#EXTVLCOPT`, `#KODIPROP` or `#EXTGRP`) and the URL line. LF
-and CRLF line endings, a UTF-8 BOM, blank lines and a missing final newline are
-handled. Output is UTF-8 without a BOM, with `\n` line endings. An entry with a
-line longer than 64 KiB is skipped.
-
-### Import endpoints
-
-Routes are relative to the API base URL (`.../api/`). Every import function
-uses `AuthorizationLevel.Anonymous` at the Function-key layer only, calls
-`OnlineAccess.AuthorizeAsync` before any other work, maps denials exactly like
-the session endpoint (401 adds `WWW-Authenticate: Bearer`) and only touches data
-stored under the caller's validated tenant and object IDs. Every response sends
-`Cache-Control: no-store`. Request bodies must be JSON
-(`Content-Type: application/json`). Errors are
-`{ "error": "<code>", "message": "<text>" }`.
-
-| Function | Method and route | Request body | Success |
-| --- | --- | --- | --- |
-| `OnlineImportStart` | `POST online/imports` | `{ "url": "..." }`, at most 16 KiB | `202` with the import status |
-| `OnlineImportStatus` | `GET online/imports/{importId}` | None | `200` with the import status |
-| `OnlineImportCategories` | `GET online/imports/{importId}/categories` | None | `200` with `{ "categories": [{ "name", "count" }], "entries" }` |
-| `OnlineImportPlaylist` | `POST online/imports/{importId}/playlist` | `{ "categories": ["..."] }`: 1-10,000 exact names, at most 4 MiB | `200`, streamed `audio/x-mpegurl; charset=utf-8` |
-| `OnlineImportDiscard` | `DELETE online/imports/{importId}` | None | `204` |
-
-The import status has `id`, `status` (`queued`, `running`, `ready` or
-`failed`), `stage` (`downloading` or `indexing` while running), `source` (only
-`scheme://host[:port]`), `createdAt`, `updatedAt`, `expiresAt`,
-`bytesDownloaded`, `totalBytes` (null when unknown, including compressed
-responses), `maxBytes`, `entries`, `categoryCount` and, when failed,
-`error: { "code", "httpStatus" }`. Import IDs are random GUIDs created by the
-server. Only the canonical lowercase form returned by the API is accepted.
-
-| Status | `error` | Meaning |
-| --- | --- | --- |
-| 400 | `invalid_request` | Start: missing, malformed, non-JSON or oversized request body |
-| 400 | `invalid_url` | Not an absolute `http`/`https` URL, has user info or a fragment, or longer than 2,048 characters |
-| 400 | `blocked_destination` | `localhost` or a literal non-public IP address; host names are resolved and checked by the worker |
-| 400 | `invalid_selection` | Playlist: missing, malformed or oversized body, no or too many categories, an empty name, or none of the selected categories has channels |
-| 401, 403, 503 | Guard codes | Exactly as for `GET /api/online/session` |
-| 404 | `import_not_found` | Unknown, malformed, discarded or **another user's** import ID |
-| 409 | `import_not_ready` | Categories or playlist requested before the import is `ready` |
-| 410 | `import_expired` | The retention time has passed; the import is deleted |
-| 429 | `rate_limited` | Too many requests from this client address, or from all clients on this instance. Refer to [Rate limits and cost protection](#rate-limits-and-cost-protection) |
-| 503 | `import_not_configured` | Storage connection or `OnlineImport__*` settings missing or invalid |
-| 503 | `import_unavailable` | Storage temporarily unavailable; retry |
-| 503 | `rate_limits_not_configured` | An `OnlineRateLimits__*` setting is not valid |
-
-A `failed` import reports one of these codes:
-
-| Code | Meaning |
-| --- | --- |
-| `invalid_url` | The URL or its host name is not acceptable |
-| `blocked_destination` | The host, or a redirect target, resolves to any non-public address |
-| `invalid_redirect` | A redirect has no usable `Location`, or it is not an acceptable `http`/`https` URL |
-| `too_many_redirects` | More than 5 redirects |
-| `source_unreachable` | DNS, connection or TLS failure |
-| `source_http_error` | The provider answered with a non-2xx status, reported in `httpStatus` |
-| `source_timeout` | The overall or idle download timeout was reached |
-| `source_too_large` | Larger than `OnlineImport__MaxDownloadMiB` (declared or counted) |
-| `not_m3u` | The first non-empty line is not `#EXTM3U` |
-| `no_categories` | No entry with a URL has a `group-title` category |
-| `too_many_categories` | More than 10,000 categories, or more than 1,048,576 characters of names |
-| `import_interrupted` | Processing stopped (host restart, stuck or poison message); import again |
-| `internal_error` | Unexpected server error; logs contain no URL |
-
-### Import settings
+### Download and storage settings
 
 All settings are Function App application settings, never `VITE_*` variables.
-Empty values use the default. Any invalid value disables URL import with
-`503 import_not_configured`; the logged reason never contains secrets.
+Empty values use the default. Saved profiles use these settings. TV links use
+the saved-profile configuration.
+The `OnlineImport` section name comes from the removed URL import feature, so existing settings stay valid.
+If the storage settings are missing, or if one of these settings is not valid,
+the profile endpoints send `503 profiles_not_configured`. The TV link endpoints
+then send `503 feeds_not_configured`. The log gives the reason without secrets.
 
 | Setting | Default | Allowed values and notes |
 | --- | --- | --- |
@@ -652,11 +561,10 @@ Empty values use the default. Any invalid value disables URL import with
 | `OnlineImport__MaxDownloadMiB` | `300` | 1-2048. Counted after decompression |
 | `OnlineImport__DownloadTimeoutSeconds` | `300` | 10-3600. Overall limit for the download, including redirects |
 | `OnlineImport__IdleTimeoutSeconds` | `60` | 5-300, not above the download timeout. Limits each wait for a connection (at most 15 seconds), response headers or more data |
-| `OnlineImport__RetentionHours` | `24` | 1-168. Time from the start of an import until it expires |
 | `OnlineImport__UserAgent` | `m3u-split/1.0` | 1-256 printable ASCII characters. Some IPTV panels reject unknown agents |
 
 The identity-based storage settings follow the Functions connection
-conventions, so the queue trigger and the API's storage clients use the same
+conventions, so the profile refresh queue triggers and the API's storage clients use the same
 identity. Prefer them in Azure: no account key is needed. Keep a connection
 string, if you must use one, only in server settings or Key Vault.
 
@@ -670,23 +578,25 @@ The code uses these resources:
 
 | Resource | Name | Contents |
 | --- | --- | --- |
-| Private blob container | `online-imports` | `{tenantId}/{objectId}/{importId}/` with `import.json` (record), `source.m3u` (download) and `categories.json` (index) |
-| Queue | `online-imports` | Work items `{ "v", "tenantId", "objectId", "importId" }`, never the URL |
-| Queue | `online-imports-poison` | Messages that failed twice; `OnlineImportPoison` marks their imports failed |
+| Private blob container | `online-profiles` | Profile records, category indexes, downloads, outputs and the `feed.json` record of each TV link. Refer to [Profile storage](#profile-storage) |
+| Private blob container | `online-feeds` | The TV link index. It never holds the token. Refer to [TV link storage](#tv-link-storage) |
+| Queue | `online-profile-refreshes` | Refresh work items. They hold only IDs, never the URL |
+| Queue | `online-profile-refreshes-poison` | Messages that failed twice. `OnlineProfileRefreshPoison` marks their refreshes failed |
 
-The API creates the container (without public access) and both queues on first
+The API creates the containers (without public access) and the queues on first
 use. If creation is not permitted, for example by a policy or network rule,
 create them in advance with exactly these names. Disable anonymous blob access
 on the account, require HTTPS and TLS 1.2 or later, and disable shared key
-access when only identities use the account. Blob soft delete or versioning
-would keep deleted imports, including provider URLs, for their own retention
-period; leave them off for this account or keep their retention short.
+access when only identities use the account. Blob soft delete and versioning
+keep copies of deleted blobs for their own retention period. These copies can
+include provider URLs and revoked TV link tokens. Keep both off for this
+account, or keep their retention short.
 
 Grant the **Function App's managed identity** these roles, scoped to the
 app-data storage account only:
 
-- **Storage Blob Data Contributor**: read, write and delete import blobs, and
-  create the container.
+- **Storage Blob Data Contributor**: read, write and delete profile and TV link
+  blobs, and create the containers.
 - **Storage Queue Data Contributor**: create the queues, and send, receive and
   delete messages.
 
@@ -697,76 +607,18 @@ documentation for those.
 For owner-approved account reuse, scope these roles to the API containers and queues.
 Do not change existing account settings without owner approval.
 
-### Lifecycle, limits and retention
-
-- **One import per user.** Starting a new import discards that user's older
-  imports once the new one is queued.
-- **Expiry.** An import expires `OnlineImport__RetentionHours` (default 24)
-  after it starts. Expired imports answer `410 import_expired` and are deleted
-  when accessed. The `OnlineImportCleanup` timer runs hourly, at minute 15, and
-  deletes every blob whose `expiresat` metadata has passed. A blob without that
-  metadata is deleted one hour after its retention time, counted from its last
-  modification. Queue messages use the same time-to-live.
-- **Discard.** `DELETE` removes the import's record, downloaded source and
-  category index at once. Signing out does not delete an import; it expires or
-  is replaced by the next import.
-- **Failures.** A failed import keeps only its status record, without the URL,
-  until it expires; its downloaded data is deleted.
-- **Stuck work.** A status request ends an import as `import_interrupted` and
-  deletes its data when it stays `queued` longer than the download timeout plus
-  10 minutes, or `running` without a progress update for longer than the idle
-  timeout plus 3 minutes. While running, progress is saved at least every few
-  seconds while data flows and before each redirect.
-- **Retries.** `host.json` processes one import message at a time per instance
-  (`batchSize: 1`, `newBatchThreshold: 0`). It moves a message to
-  `online-imports-poison` after two attempts (`maxDequeueCount: 2`, with a
-  30-second `visibilityTimeout` between them). Only storage errors before the
-  download starts are retried. Download, content and unexpected errors end the
-  import as `failed` at once. A redelivered message for an import that had
-  already started ends it as `import_interrupted` instead of downloading it
-  again.
-- **Rate limits.** The API limits the requests of each client address and of
-  each instance. Refer to
-  [Rate limits and cost protection](#rate-limits-and-cost-protection).
-
-As an optional backstop that works even while the Function App is stopped, add
-a Blob lifecycle management rule to the app-data account. Keep
-`daysAfterModificationGreaterThan` above the retention time in days (2 suits the
-default 24 hours):
-
-```json
-{
-  "rules": [
-    {
-      "enabled": true,
-      "name": "delete-expired-online-imports",
-      "type": "Lifecycle",
-      "definition": {
-        "filters": {
-          "blobTypes": [ "blockBlob", "appendBlob" ],
-          "prefixMatch": [ "online-imports/" ]
-        },
-        "actions": {
-          "baseBlob": { "delete": { "daysAfterModificationGreaterThan": 2 } }
-        }
-      }
-    }
-  ]
-}
-```
-
 ### Timeouts and hosting plan
 
 `host.json` sets `functionTimeout` to `00:10:00`, the maximum on the Consumption
 plan. The default download timeout (300 seconds) leaves the rest of that time
-for indexing. Flex Consumption, Premium and Dedicated plans allow longer function
+for indexing and filtering. Flex Consumption, Premium and Dedicated plans allow longer function
 timeouts. If you raise `OnlineImport__DownloadTimeoutSeconds`, keep it well
 below `functionTimeout`, and raise that only where the plan allows. Azure's
 front end allows an HTTP-triggered function about 230 seconds to respond,
 whatever the function timeout, which may cut off very slow filtered playlist
-downloads. The worker appends 4 MiB blocks to an append blob, and the playlist
-endpoint streams from storage, so memory use does not grow with the playlist
-size.
+downloads. The refresh worker appends 4 MiB blocks to an append blob and stages
+the output in 4 MiB blocks. The profile output and TV link endpoints stream
+from storage. Thus, memory use does not grow with the playlist size.
 
 ### Outbound request policy (SSRF)
 
@@ -787,8 +639,8 @@ the following for every download:
   link-local `fe80::/10`, site-local, multicast), documentation, benchmarking
   and ORCHID ranges, plus IPv4-mapped, IPv4-compatible, NAT64 (`64:ff9b::/96`),
   6to4 (`2002::/16`) and Teredo addresses that embed a blocked IPv4 address.
-  Private endpoints and virtual-network hosts can therefore never be reached
-  through an import.
+  Thus, a profile refresh cannot reach private endpoints or virtual-network
+  hosts.
 - The TCP connection is pinned to the validated address
   (`SocketsHttpHandler.ConnectCallback`), which defeats DNS rebinding. HTTPS
   still uses the URL's host name for SNI and certificate validation.
@@ -799,36 +651,18 @@ the following for every download:
 - Size is limited by a `Content-Length` check and by counting bytes after
   gzip, deflate or Brotli decompression. Overall and idle timeouts apply.
 - The first non-empty line must be `#EXTM3U` (a UTF-8 BOM and leading
-  whitespace are allowed); otherwise the import fails with `not_m3u`.
+  whitespace are allowed). If not, the refresh fails with `not_m3u`.
 
-### Privacy
-
-Provider URLs usually contain the account user name and password.
-
-- The full URL is stored only in the private `import.json` record of its import,
-  and only until the download finishes or fails: the worker clears it before
-  indexing and when an import fails. It is never put in queue messages, logs,
-  exception messages, error responses or telemetry. The API returns only
-  `scheme://host[:port]`.
-- The `OutboundUrlRedaction` Application Insights telemetry processor reduces
-  every outgoing HTTP dependency to `scheme://host[:port]`, and blanks it when
-  it cannot be parsed, so automatic dependency tracking cannot record playlist
-  paths or queries.
-- Logs contain only import IDs, failure codes, HTTP status codes, exception
-  type names and storage status codes.
-- Discarding, replacing or expiring an import deletes its data.
-- The browser does not save the URL in local or session storage. The input is
-  cleared once the import starts.
-
-## Phase 3: saved profiles and one-click refresh
+## Saved profiles and one-click refresh
 
 A saved profile is a name, a provider URL and a set of chosen categories that
 the server keeps for its owner. **Refresh** downloads the provider playlist
 again and regenerates the filtered playlist on the server, so the browser
 never handles the full provider file. **Download latest** saves the most
-recent successful result whenever needed. Profiles run in the same standalone
-Function App and storage account as URL import, with the same SSRF policy and
-download limits.
+recent successful result whenever needed. Profiles run in the standalone
+Function App. They use the storage account, download limits and outbound
+request policy in
+[Provider downloads and playlist storage](#provider-downloads-and-playlist-storage).
 
 1. `POST /api/online/profiles` validates the name and URL, saves the profile in
    private storage, queues its first refresh (the message holds **only IDs**,
@@ -844,10 +678,17 @@ download limits.
 4. The browser polls only while a refresh is queued or running, with backoff
    from 1 to 5 seconds. `GET .../output` streams the current output.
 
-Filtering, category names and the output format are exactly those of
-[URL import](#phase-2-authenticated-url-import): exact `group-title` names, the
-source's `#EXTM3U` line first, complete entries in source order, UTF-8 without
-a BOM and `\n` line endings.
+Category names are the exact `group-title="..."` values of `#EXTINF` lines:
+untrimmed, case-sensitive, in first-seen order, with empty values excluded.
+They match what the local parser shows, so favourites (exact names under
+`m3u-split:favourites`) work in both workflows. The filtered playlist starts
+with the source's `#EXTM3U` line, keeping attributes such as `url-tvg` or
+`x-tvg-url`. It then contains every complete entry in a selected category, in
+source order: the `#EXTINF` line (any duration), any directive lines before the
+URL (for example `#EXTVLCOPT`, `#KODIPROP` or `#EXTGRP`) and the URL line. LF
+and CRLF line endings, a UTF-8 BOM, blank lines and a missing final newline are
+handled. Output is UTF-8 without a BOM, with `\n` line endings. An entry with a
+line longer than 64 KiB is skipped.
 
 In the app, select **Saved profiles** and sign in. After the API checks access,
 the page shows saved profiles. It lists each profile with its host, refresh progress, last
@@ -860,10 +701,10 @@ favourites saved in the browser.
 
 ### Profile endpoints
 
-Routes are relative to the API base URL (`.../api/`). Like the import
-endpoints, every profile function uses `AuthorizationLevel.Anonymous` at the
-Function-key layer only, calls `OnlineAccess.AuthorizeAsync` before any other
-work, maps denials exactly like the session endpoint and only touches profiles
+Routes are relative to the API base URL (`.../api/`). Every profile function
+uses `AuthorizationLevel.Anonymous` at the Function-key layer only, calls
+`OnlineAccess.AuthorizeAsync` before any other work, maps denials exactly like
+the session endpoint (401 adds `WWW-Authenticate: Bearer`) and only touches profiles
 stored under the caller's validated tenant and object IDs. Every response sends
 `Cache-Control: no-store`. Request bodies must be JSON
 (`Content-Type: application/json`). Errors are
@@ -905,7 +746,8 @@ lowercase form returned by the API is accepted.
 | --- | --- | --- |
 | 400 | `invalid_request` | Missing, malformed, non-JSON or oversized request body |
 | 400 | `invalid_name` | The trimmed name is empty, longer than 80 characters or contains control or invisible formatting characters |
-| 400 | `invalid_url`, `blocked_destination` | As for URL import |
+| 400 | `invalid_url` | Not an absolute `http`/`https` URL, has user info or a fragment, or longer than 2,048 characters |
+| 400 | `blocked_destination` | `localhost` or a literal non-public IP address. The refresh worker resolves and checks host names |
 | 400 | `invalid_selection` | More than 10,000 names or an empty name. Saving categories also needs at least one name, and each must be in the latest index or already selected |
 | 401, 403, 503 | Guard codes | Exactly as for `GET /api/online/session` |
 | 404 | `profile_not_found` | Unknown, malformed, deleted or **another user's** profile ID |
@@ -913,17 +755,26 @@ lowercase form returned by the API is accepted.
 | 409 | `profile_limit_reached` | Create: the user already has `OnlineProfiles__MaxProfilesPerUser` profiles |
 | 409 | `profile_not_indexed` | Categories read or saved before the first successful indexing |
 | 409 | `refresh_in_progress` | Categories or URL changed while a refresh is queued or running |
-| 429 | `rate_limited` | As for URL import |
+| 429 | `rate_limited` | Too many requests from this client address, or from all clients on this instance. Refer to [Rate limits and cost protection](#rate-limits-and-cost-protection) |
 | 503 | `profiles_not_configured` | Storage connection, `OnlineImport__*` or `OnlineProfiles__*` settings missing or invalid |
 | 503 | `profiles_unavailable` | Storage temporarily unavailable; retry |
-| 503 | `rate_limits_not_configured` | As for URL import |
+| 503 | `rate_limits_not_configured` | An `OnlineRateLimits__*` setting is not valid |
 
-A `failed` refresh reports the same download and playlist codes as a failed
-import (from `invalid_url` to `too_many_categories`; see
-[Import endpoints](#import-endpoints)), or one of these:
+A `failed` refresh reports one of these codes:
 
 | Code | Meaning |
 | --- | --- |
+| `invalid_url` | The URL or its host name is not acceptable |
+| `blocked_destination` | The host, or a redirect target, resolves to any non-public address |
+| `invalid_redirect` | A redirect has no usable `Location`, or it is not an acceptable `http`/`https` URL |
+| `too_many_redirects` | More than 5 redirects |
+| `source_unreachable` | DNS, connection or TLS failure |
+| `source_http_error` | The provider answered with a non-2xx status, reported in `httpStatus` |
+| `source_timeout` | The overall or idle download timeout was reached |
+| `source_too_large` | Larger than `OnlineImport__MaxDownloadMiB` (declared or counted) |
+| `not_m3u` | The first non-empty line is not `#EXTM3U` |
+| `no_categories` | No entry with a URL has a `group-title` category |
+| `too_many_categories` | More than 10,000 categories, or more than 1,048,576 characters of names |
 | `no_matching_channels` | None of the selected categories has channels in the new playlist |
 | `refresh_interrupted` | Processing stopped (host restart, stuck or poison message, or the refresh could not be queued); refresh again |
 | `internal_error` | Unexpected server error; logs contain no URL |
@@ -934,19 +785,17 @@ import (from `invalid_url` to `too_many_categories`; see
 | --- | --- | --- |
 | `OnlineProfiles__MaxProfilesPerUser` | `10` | 1-50. Profiles each user can save; checked when a profile is created |
 
-Like the import settings, this is a Function App application setting, and an
-empty value uses the default. An invalid value disables saved profiles with
-`503 profiles_not_configured` and logs the reason once; URL import keeps
-working. Profiles also need the `OnlinePlaylistStorage` connection and use the
-shared `OnlineImport__MaxDownloadMiB`, `OnlineImport__DownloadTimeoutSeconds`,
-`OnlineImport__IdleTimeoutSeconds` and `OnlineImport__UserAgent` limits from
-[Import settings](#import-settings). `OnlineImport__RetentionHours` does not
-apply to profiles.
+This is a Function App application setting, and an empty value uses the
+default. If the value is not valid, the profile endpoints send
+`503 profiles_not_configured`, and the log gives the reason once. Profiles also
+need the `OnlinePlaylistStorage` connection. They use the
+`OnlineImport__MaxDownloadMiB`, `OnlineImport__DownloadTimeoutSeconds`,
+`OnlineImport__IdleTimeoutSeconds` and `OnlineImport__UserAgent` limits. Refer
+to [Download and storage settings](#download-and-storage-settings).
 
 ### Profile storage
 
-Profiles use the same app-data storage account as URL import, in their own
-resources, so the import cleanup never touches them:
+Profiles use the app-data storage account, in their own resources:
 
 | Resource | Name | Contents |
 | --- | --- | --- |
@@ -978,11 +827,12 @@ changes never overwrite each other.
 - **Stuck work.** Reading a profile or the list ends a refresh as
   `refresh_interrupted` when it stays `queued` longer than the download timeout
   plus 10 minutes, or `running` without a heartbeat for longer than the idle
-  timeout plus 3 minutes, the same allowances as URL import. The worker saves a
+  timeout plus 3 minutes. The worker saves a
   heartbeat at least every few seconds while working and before each redirect.
-- **Retries.** The `host.json` queue settings shared with URL import apply: one
-  message at a time per instance, two attempts, then
-  `online-profile-refreshes-poison`. Only storage errors before the refresh
+- **Retries.** The `host.json` queue settings apply: one message at a time per
+  instance (`batchSize: 1`, `newBatchThreshold: 0`), two attempts
+  (`maxDequeueCount: 2`, with a 30-second `visibilityTimeout` between them),
+  then `online-profile-refreshes-poison`. Only storage errors before the refresh
   starts are retried. A redelivered message for a refresh that had already
   started ends it as `refresh_interrupted` instead of starting again. Queue
   messages expire after 2 hours.
@@ -1001,8 +851,7 @@ changes never overwrite each other.
   existing profiles.
 
 Do not add an age-based Blob lifecycle rule for `online-profiles/`: profiles
-never expire, and a current output can be older than any fixed age. The
-lifecycle example above covers only `online-imports/`.
+never expire, and a current output can be older than any fixed age.
 
 ### Atomic output and the last good playlist
 
@@ -1027,7 +876,7 @@ lifecycle example above covers only `online-imports/`.
 ### Profile privacy
 
 Provider URLs usually contain the account user name and password. A profile
-must keep its URL to refresh it, unlike an import.
+must keep its URL to refresh it.
 
 - The full URL is stored only in the private `profile.json` record of its
   profile, until the profile is deleted or its URL is changed. It is never put
@@ -1035,8 +884,10 @@ must keep its URL to refresh it, unlike an import.
   or telemetry. The API returns only `scheme://host[:port]` (`sourceDisplay`).
 - Logs contain only profile and refresh IDs, `scheme://host[:port]`, failure
   codes, HTTP status codes, exception type names and storage status codes.
-- Outgoing HTTP dependency telemetry is reduced to `scheme://host[:port]` by
-  the same `OutboundUrlRedaction` processor as URL import.
+- The `OutboundUrlRedaction` Application Insights telemetry processor reduces
+  every outgoing HTTP dependency to `scheme://host[:port]`. If it cannot parse
+  the URL, it removes the URL. Thus, dependency tracking cannot record
+  playlist paths or queries.
 - The browser never receives the stored URL, and **Change URL** is never
   prefilled. The browser does not save the URL in local or session storage.
 - Blob soft delete or versioning would keep deleted or replaced records,
@@ -1058,9 +909,9 @@ must keep its URL to refresh it, unlike an import.
   CORS cannot expose `Content-Disposition`. Azure's HTTP response limit of
   about 230 seconds also applies to very slow downloads.
 - A TV link serves the latest successful output and never starts a refresh;
-  see [Phase 4](#phase-4-secret-tv-links-for-smart-iptv).
+  see [Secret TV links for Smart IPTV](#secret-tv-links-for-smart-iptv).
 
-## Phase 4: secret TV links for Smart IPTV
+## Secret TV links for Smart IPTV
 
 Smart IPTV **My List** can load a playlist from a link, but a full provider
 playlist is often too large for the TV app. A TV link gives a saved profile a
@@ -1123,10 +974,10 @@ from the token and its API base URL.
 | 401, 403, 503 | Guard codes | Exactly as for `GET /api/online/session` |
 | 404 | `profile_not_found` | Unknown, malformed, deleted or **another user's** profile ID |
 | 404 | `feed_not_found` | Get or regenerate: the profile has no link. Regenerate never creates one, so a stale page cannot bring back a revoked link |
-| 429 | `rate_limited` | As for URL import |
+| 429 | `rate_limited` | Too many requests from this client address, or from all clients on this instance. Refer to [Rate limits and cost protection](#rate-limits-and-cost-protection) |
 | 503 | `feeds_not_configured` | Saved profiles, `OnlineAuth__*` or the storage connection missing or invalid |
 | 503 | `feeds_unavailable` | Storage temporarily unavailable, or too many simultaneous changes to the same link; retry |
-| 503 | `rate_limits_not_configured` | As for URL import |
+| 503 | `rate_limits_not_configured` | An `OnlineRateLimits__*` setting is not valid |
 
 The link itself is served by `OnlineFeed`:
 
@@ -1141,7 +992,7 @@ The link itself is served by `OnlineFeed`:
 | 429 | `rate_limited` | Too many TV link requests from this client address in one minute, too many requests on this instance, or too many `GET` downloads of this link in one hour. Refer to [Rate limits and cost protection](#rate-limits-and-cost-protection) |
 | 503 | `feeds_not_configured` | As for the owner endpoints |
 | 503 | `feeds_unavailable` | Storage temporarily unavailable; retry. No details are returned |
-| 503 | `rate_limits_not_configured` | As for URL import |
+| 503 | `rate_limits_not_configured` | An `OnlineRateLimits__*` setting is not valid |
 
 `OnlineFeed` uses `AuthorizationLevel.Anonymous` and deliberately does **not**
 call the sign-in guard, because Smart IPTV cannot sign in. Every response,
@@ -1415,7 +1266,7 @@ Core Tools v4 and, for the example storage settings, an already running Azurite
 emulator with its Blob and Queue services. Install/start only the tools and
 services you have approved.
 
-Azurite keeps the imported playlists, the saved profiles and their outputs.
+Azurite keeps the saved profiles, their downloads and their outputs.
 These files contain the provider credentials. Keep the Azurite data outside
 the repository. For example, start Azurite with
 `azurite --location "$env:LOCALAPPDATA\Azurite"`. In VS Code, set
@@ -1450,16 +1301,16 @@ npm.cmd --prefix .\client run dev -- --host=localhost --port=5173 --strictPort
 
 ```powershell
 Set-Location .\api
-func start --port 7071 --functions OnlineSession OnlineImportStart OnlineImportStatus OnlineImportCategories OnlineImportPlaylist OnlineImportDiscard OnlineImportWorker OnlineImportPoison OnlineImportCleanup OnlineProfileList OnlineProfileCreate OnlineProfileGet OnlineProfileCategories OnlineProfileSelect OnlineProfileRename OnlineProfileSource OnlineProfileRefresh OnlineProfileOutput OnlineProfileDelete OnlineProfileRefreshWorker OnlineProfileRefreshPoison OnlineProfileCleanup OnlineFeedGet OnlineFeedCreate OnlineFeedRegenerate OnlineFeedRevoke OnlineFeed OnlineFeedCleanup
+func start --port 7071 --functions OnlineSession OnlineProfileList OnlineProfileCreate OnlineProfileGet OnlineProfileCategories OnlineProfileSelect OnlineProfileRename OnlineProfileSource OnlineProfileRefresh OnlineProfileOutput OnlineProfileDelete OnlineProfileRefreshWorker OnlineProfileRefreshPoison OnlineProfileCleanup OnlineFeedGet OnlineFeedCreate OnlineFeedRegenerate OnlineFeedRevoke OnlineFeed OnlineFeedCleanup
 ```
 
 This list contains every function of the API. The API does not have the
 legacy `Upload` and `Download` functions.
 The example `local.settings.json` points both `AzureWebJobsStorage` and
 `OnlinePlaylistStorage` at Azurite (`UseDevelopmentStorage=true`); the API
-creates the `online-imports`, `online-profiles` and `online-feeds` containers
-and their queues there on first use. The outbound request policy also applies locally: imports
-and profile refreshes from `localhost`, private-network or emulator addresses
+creates the `online-profiles` and `online-feeds` containers and the profile
+refresh queues there on first use. The outbound request policy also applies locally:
+profile refreshes from `localhost`, private-network or emulator addresses
 fail with `blocked_destination`, so use a publicly reachable playlist URL.
 
 Open **http://localhost:5173/m3u-split/**. The existing Vite `/api` proxy remains
@@ -1476,8 +1327,8 @@ to keep the cost low and to get a warning quickly.
 ### Dedicated plan settings
 
 Keep Always On enabled for the API.
-Its four queue triggers and three hourly timers must operate without HTTP requests.
-The timers delete expired data, which can contain provider credentials.
+Its two queue triggers and two hourly timers must operate without HTTP requests.
+The timers delete unused data, which can contain provider credentials.
 Do not change a shared plan to control this API's cost.
 Such a change also affects its other apps.
 
@@ -1506,7 +1357,7 @@ Use these values if the Function App uses **Flex Consumption** (Linux):
 
 | Setting | Value | Reason |
 | --- | --- | --- |
-| Instance memory (`instanceMemoryMB`) | `512` | The smallest size. If a large import fails, use `2048`. |
+| Instance memory (`instanceMemoryMB`) | `512` | The smallest size. If a large profile refresh fails, use `2048`. |
 | Maximum instance count (`maximumInstanceCount`) | `1` | The lowest value. The default is 100 and the highest value is 1,000. |
 | Always ready instances | `0` | The default. An always ready instance costs money all the time. |
 | HTTP concurrency for each instance | The default | For 512 MB, the default is 4 requests at the same time. |
@@ -1613,7 +1464,7 @@ it deploys, it checks these items:
 
 - The deployment IDs
 - The server auth settings
-- A URL import storage connection (`OnlinePlaylistStorage` or both
+- A playlist storage connection (`OnlinePlaylistStorage` or both
   identity-based service URIs)
 - The `dotnet-isolated` runtime (`functionAppConfig.runtime` on Flex
   Consumption, or `FUNCTIONS_WORKER_RUNTIME` on other plans)
@@ -1729,9 +1580,8 @@ Expected API responses, all with `Cache-Control: no-store`:
 | 429 | `rate_limited`: too many requests. Refer to [Rate limits and cost protection](#rate-limits-and-cost-protection) |
 | 503 | Missing/invalid server configuration or signing-key discovery unavailable. `rate_limits_not_configured` shows that an `OnlineRateLimits__*` setting is not valid |
 
-The rate limit checks occur first. The import endpoints then return these guard responses before anything else, and
-then the codes listed in [Import endpoints](#import-endpoints). The saved
-profile endpoints do the same, followed by the codes listed in
+The rate limit checks occur first. The saved profile endpoints then return
+these guard responses before anything else, and then the codes listed in
 [Profile endpoints](#profile-endpoints). The TV link owner endpoints do the
 same, followed by the codes listed in [TV link endpoints](#tv-link-endpoints);
 the TV link itself (`OnlineFeed`) never returns guard responses.
@@ -1759,21 +1609,7 @@ a signed-in unlisted account (403), no/invalid token (401), exact-origin CORS,
 consent, deployed callback headers, PWA popup behavior, live signing-key
 discovery and deployed API access still require that real environment.
 
-For URL import, also verify in that environment, with a real provider URL:
-
-- An allowed account can import, watch progress, choose categories and
-  download a filtered playlist that Smart IPTV My List accepts.
-- Another allowed account gets 404 for that import ID.
-- Discarding, or starting a newer import, removes the old blobs.
-- Private, `localhost` and metadata-endpoint URLs fail with
-  `blocked_destination`.
-- Application Insights dependencies and logs show at most
-  `scheme://host[:port]`, never the playlist path or query, and queue messages
-  contain only IDs.
-- Imports near the size and time limits finish or fail cleanly on the chosen
-  hosting plan.
-
-For saved profiles, also verify in that environment:
+For saved profiles, also verify in that environment, with a real provider URL:
 
 - A new profile with saved favourites refreshes once and its **Download
   latest** playlist is accepted by Smart IPTV My List.
@@ -1782,6 +1618,11 @@ For saved profiles, also verify in that environment:
   downloadable.
 - Another allowed account gets 404 for that profile ID, and responses and logs
   never contain the stored URL, only `scheme://host[:port]`.
+- Private, `localhost` and metadata-endpoint URLs fail with
+  `blocked_destination`.
+- Application Insights dependencies and logs show at most
+  `scheme://host[:port]`, never the playlist path or query, and queue messages
+  contain only IDs.
 - Deleting a profile, including during a refresh, removes every blob under its
   prefix and the profile does not reappear.
 - The profile limit, and refreshes near the size and time limits, behave as

@@ -28,8 +28,8 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-08-01'
 }
 
 var hostContainerNames = ['azure-webjobs-hosts', 'azure-webjobs-secrets']
-var dataContainerNames = ['online-imports', 'online-profiles', 'online-feeds']
-var dataQueueNames = ['online-imports', 'online-imports-poison', 'online-profile-refreshes', 'online-profile-refreshes-poison']
+var dataContainerNames = ['online-profiles', 'online-feeds']
+var dataQueueNames = ['online-profile-refreshes', 'online-profile-refreshes-poison']
 
 resource hostContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-08-01' = [
   for containerName in hostContainerNames: {

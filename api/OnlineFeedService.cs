@@ -49,7 +49,7 @@ public sealed class OnlineFeedLookup
     public DateTimeOffset CreatedAt { get; set; }
 
     [JsonIgnore]
-    public OnlineImportOwner Owner => new(TenantId, ObjectId);
+    public OnlineOwner Owner => new(TenantId, ObjectId);
 }
 
 /// <summary>A <c>feed.json</c> blob; <see cref="State"/> is null when the blob exists but is not a valid link.</summary>
@@ -68,7 +68,7 @@ public enum OnlineFeedOutcome
 public readonly record struct OnlineFeedChange(OnlineFeedOutcome Outcome, OnlineFeedState? State = null);
 
 /// <summary>The profile behind a working TV link.</summary>
-public readonly record struct OnlineFeedTarget(OnlineImportOwner Owner, Guid ProfileId);
+public readonly record struct OnlineFeedTarget(OnlineOwner Owner, Guid ProfileId);
 
 public sealed class OnlineFeedCleanupResult
 {
@@ -167,13 +167,13 @@ public sealed class OnlineFeedService
     public static string Hash(string token) => Convert.ToHexStringLower(HashBytes(token));
 
     /// <summary>True when the owner of a link may still use online playlists (same tenant and allowlist as sign-in).</summary>
-    public bool IsAllowed(OnlineImportOwner owner)
+    public bool IsAllowed(OnlineOwner owner)
     {
         EnsureConfigured();
         return owner.TenantId == authSettings.TenantId && authSettings.AllowedObjectIds.Contains(owner.ObjectId);
     }
 
-    public Task<bool> ProfileExistsAsync(OnlineImportOwner owner, Guid profileId, CancellationToken cancellationToken)
+    public Task<bool> ProfileExistsAsync(OnlineOwner owner, Guid profileId, CancellationToken cancellationToken)
     {
         EnsureConfigured();
         return store.RecordExistsAsync(owner, profileId, cancellationToken);
@@ -181,14 +181,14 @@ public sealed class OnlineFeedService
 
     /// <summary>Opens the latest successful output of a profile, or returns null when there is none.</summary>
     public Task<OnlineProfileOutputContent?> OpenOutputAsync(
-        OnlineImportOwner owner, Guid profileId, CancellationToken cancellationToken)
+        OnlineOwner owner, Guid profileId, CancellationToken cancellationToken)
     {
         EnsureConfigured();
         return profiles.OpenCurrentOutputAsync(owner, profileId, cancellationToken);
     }
 
     /// <summary>Reads the link of a profile, or returns null when it has none.</summary>
-    public async Task<StoredFeed?> GetFeedAsync(OnlineImportOwner owner, Guid profileId, CancellationToken cancellationToken)
+    public async Task<StoredFeed?> GetFeedAsync(OnlineOwner owner, Guid profileId, CancellationToken cancellationToken)
     {
         EnsureConfigured();
         BlobDownloadResult result;
@@ -245,7 +245,7 @@ public sealed class OnlineFeedService
     /// feed.json, so a working link can always be found. When a concurrent request writes feed.json first,
     /// its link is returned and the unused index entry is removed.
     /// </summary>
-    public async Task<OnlineFeedChange> CreateAsync(OnlineImportOwner owner, Guid profileId, CancellationToken cancellationToken)
+    public async Task<OnlineFeedChange> CreateAsync(OnlineOwner owner, Guid profileId, CancellationToken cancellationToken)
     {
         EnsureConfigured();
         await EnsureCreatedAsync(cancellationToken);
@@ -280,7 +280,7 @@ public sealed class OnlineFeedService
     /// Gives an existing link a new token. The new index entry is written first; the old token stops
     /// working the moment feed.json is replaced, after which its index entry is only cleanup.
     /// </summary>
-    public async Task<OnlineFeedChange> RegenerateAsync(OnlineImportOwner owner, Guid profileId, CancellationToken cancellationToken)
+    public async Task<OnlineFeedChange> RegenerateAsync(OnlineOwner owner, Guid profileId, CancellationToken cancellationToken)
     {
         EnsureConfigured();
         await EnsureCreatedAsync(cancellationToken);
@@ -314,7 +314,7 @@ public sealed class OnlineFeedService
 
     /// <summary>Revokes the link of a profile. Deleting feed.json ends it at once; its index entry is only cleanup.</summary>
     /// <returns>True when the profile had a link.</returns>
-    public async Task<bool> RevokeAsync(OnlineImportOwner owner, Guid profileId, CancellationToken cancellationToken)
+    public async Task<bool> RevokeAsync(OnlineOwner owner, Guid profileId, CancellationToken cancellationToken)
     {
         EnsureConfigured();
         var current = await GetFeedAsync(owner, profileId, cancellationToken);
@@ -370,7 +370,7 @@ public sealed class OnlineFeedService
     }
 
     /// <summary>Undoes a link written while its profile was being deleted, so it cannot outlive the profile.</summary>
-    private async Task<OnlineFeedChange> AbandonAsync(OnlineImportOwner owner, Guid profileId, OnlineFeedState state, ETag etag)
+    private async Task<OnlineFeedChange> AbandonAsync(OnlineOwner owner, Guid profileId, OnlineFeedState state, ETag etag)
     {
         try
         {
@@ -404,7 +404,7 @@ public sealed class OnlineFeedService
 
     /// <returns>False when an entry with this hash already exists, which 256 random bits make practically impossible.</returns>
     private async Task<bool> TryCreateLookupAsync(
-        OnlineImportOwner owner, Guid profileId, OnlineFeedState state, CancellationToken cancellationToken)
+        OnlineOwner owner, Guid profileId, OnlineFeedState state, CancellationToken cancellationToken)
     {
         var lookup = new OnlineFeedLookup
         {
@@ -435,7 +435,7 @@ public sealed class OnlineFeedService
     /// <summary>Creates feed.json when <paramref name="ifMatch"/> is null, otherwise replaces exactly that version.</summary>
     /// <returns>The new ETag, or null when feed.json changed meanwhile.</returns>
     private async Task<ETag?> TryWriteFeedAsync(
-        OnlineImportOwner owner, Guid profileId, OnlineFeedState state, ETag? ifMatch, CancellationToken cancellationToken)
+        OnlineOwner owner, Guid profileId, OnlineFeedState state, ETag? ifMatch, CancellationToken cancellationToken)
     {
         try
         {
@@ -598,7 +598,7 @@ public sealed class OnlineFeedService
         lookup.TenantId != Guid.Empty && lookup.ObjectId != Guid.Empty &&
         lookup.ProfileId != Guid.Empty && lookup.FeedId != Guid.Empty && lookup.CreatedAt != default;
 
-    private BlobClient FeedBlob(OnlineImportOwner owner, Guid profileId) =>
+    private BlobClient FeedBlob(OnlineOwner owner, Guid profileId) =>
         profileBlobs!.GetBlobClient(OnlineProfileStore.ProfilePrefix(owner, profileId) + FeedFile);
 
     private BlobClient LookupBlob(string hash) => lookups!.GetBlobClient(hash + LookupExtension);

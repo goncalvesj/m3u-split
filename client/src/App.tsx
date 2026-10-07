@@ -216,10 +216,10 @@ function App() {
                   <span className="mode-desc">Use an M3U file from this device. No account is necessary.</span>
                 </button>
                 {configuration.kind === 'configured' && (
-                    <button type="button" className="mode-btn" onClick={() => changeMethod('profiles')}>
-                      <span className="mode-title">Saved profiles</span>
-                      <span className="mode-desc">Refresh a playlist, download it, or get a TV link. Microsoft sign-in is necessary.</span>
-                    </button>
+                  <button type="button" className="mode-btn" onClick={() => changeMethod('profiles')}>
+                    <span className="mode-title">Saved profiles</span>
+                    <span className="mode-desc">Refresh a playlist, download it, or get a TV link. Microsoft sign-in is necessary.</span>
+                  </button>
                 )}
               </div>
               {configuration.kind !== 'configured' && (

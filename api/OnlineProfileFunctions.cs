@@ -188,7 +188,7 @@ public sealed class OnlineProfileFunctions(
             return auth.Denied;
         if (!profiles.IsConfigured)
             return NotConfigured();
-        if (!OnlineImportIds.TryParse(profileId, out var id))
+        if (!OnlineIds.TryParse(profileId, out var id))
             return NotFound();
 
         try
@@ -214,7 +214,7 @@ public sealed class OnlineProfileFunctions(
             return auth.Denied;
         if (!profiles.IsConfigured)
             return NotConfigured();
-        if (!OnlineImportIds.TryParse(profileId, out var id))
+        if (!OnlineIds.TryParse(profileId, out var id))
             return NotFound();
 
         var store = profiles.Store;
@@ -252,7 +252,7 @@ public sealed class OnlineProfileFunctions(
             return auth.Denied;
         if (!profiles.IsConfigured)
             return NotConfigured();
-        if (!OnlineImportIds.TryParse(profileId, out var id))
+        if (!OnlineIds.TryParse(profileId, out var id))
             return NotFound();
 
         var body = await OnlineHttp.ReadJsonAsync<OnlineProfileSelectionRequest>(request, MaxCategoriesBodyBytes, cancellationToken);
@@ -314,7 +314,7 @@ public sealed class OnlineProfileFunctions(
             return auth.Denied;
         if (!profiles.IsConfigured)
             return NotConfigured();
-        if (!OnlineImportIds.TryParse(profileId, out var id))
+        if (!OnlineIds.TryParse(profileId, out var id))
             return NotFound();
 
         var body = await OnlineHttp.ReadJsonAsync<OnlineProfileRenameRequest>(request, MaxSmallBodyBytes, cancellationToken);
@@ -360,7 +360,7 @@ public sealed class OnlineProfileFunctions(
             return auth.Denied;
         if (!profiles.IsConfigured)
             return NotConfigured();
-        if (!OnlineImportIds.TryParse(profileId, out var id))
+        if (!OnlineIds.TryParse(profileId, out var id))
             return NotFound();
 
         var body = await OnlineHttp.ReadJsonAsync<OnlineProfileSourceRequest>(request, MaxSmallBodyBytes, cancellationToken);
@@ -417,7 +417,7 @@ public sealed class OnlineProfileFunctions(
             return auth.Denied;
         if (!profiles.IsConfigured)
             return NotConfigured();
-        if (!OnlineImportIds.TryParse(profileId, out var id))
+        if (!OnlineIds.TryParse(profileId, out var id))
             return NotFound();
 
         var store = profiles.Store;
@@ -459,7 +459,7 @@ public sealed class OnlineProfileFunctions(
             return auth.Denied;
         if (!profiles.IsConfigured)
             return NotConfigured();
-        if (!OnlineImportIds.TryParse(profileId, out var id))
+        if (!OnlineIds.TryParse(profileId, out var id))
             return NotFound();
 
         OnlineProfileOutputContent? output = null;
@@ -501,7 +501,7 @@ public sealed class OnlineProfileFunctions(
             return auth.Denied;
         if (!profiles.IsConfigured)
             return NotConfigured();
-        if (!OnlineImportIds.TryParse(profileId, out var id))
+        if (!OnlineIds.TryParse(profileId, out var id))
             return NotFound();
 
         try

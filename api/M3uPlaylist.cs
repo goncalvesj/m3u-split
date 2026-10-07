@@ -34,7 +34,7 @@ public sealed class M3uEntry(string extInf)
 }
 
 /// <summary>
-/// Streaming M3U support shared by URL imports and later saved-profile refreshes. Category names use the
+/// Streaming M3U support for saved profile refreshes. Category names use the
 /// same rule as the browser parser: the exact, untrimmed value of every group-title="..." attribute.
 /// </summary>
 public static partial class M3uPlaylist

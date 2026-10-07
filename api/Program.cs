@@ -17,11 +17,10 @@ builder.UseMiddleware<OnlineRateLimitMiddleware>();
 
 builder.Services.AddSingleton<OnlineAccess>();
 
-// URL import: storage credentials follow the Functions connection conventions (see docs/online-setup.md).
+// Saved profiles and TV links: storage credentials follow the Functions connection conventions (see docs/online-setup.md).
 builder.Services.AddAzureClientsCore();
-builder.Services.AddSingleton<OnlineImportService>();
 
-// Saved profiles: same storage account and download limits as URL import, separate container and queues.
+// Saved profiles: own container and queues in the playlist storage account.
 builder.Services.AddSingleton<OnlineProfileService>();
 
 // TV links: secret read-only links to saved profiles, in the same storage account (see docs/online-setup.md).

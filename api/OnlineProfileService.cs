@@ -6,8 +6,8 @@ using Microsoft.Extensions.Logging;
 namespace api;
 
 /// <summary>
-/// Shared saved-profile services. Profiles reuse the URL import download limits
-/// (<c>OnlineImport__*</c>) and the <c>OnlinePlaylistStorage</c> account. Invalid or missing
+/// Shared saved-profile services. Profiles use the download limits in
+/// <c>OnlineImport__*</c> and the <c>OnlinePlaylistStorage</c> account. Invalid or missing
 /// configuration is logged once and reported by the endpoints as 503 profiles_not_configured instead
 /// of stopping the whole Function App.
 /// </summary>
@@ -19,10 +19,10 @@ public sealed class OnlineProfileService : IDisposable
     public OnlineProfileService(IConfiguration configuration, AzureComponentFactory components, ILoggerFactory loggerFactory)
     {
         logger = loggerFactory.CreateLogger<OnlineProfileService>();
-        var importSettings = OnlineImportSettings.Read(configuration, out var importError);
+        var importSettings = OnlineImportSettings.Read(configuration, out var downloadError);
         if (importSettings is null)
         {
-            logger.LogError("Saved online profiles are disabled: {ConfigurationError}", importError);
+            logger.LogError("Saved online profiles are disabled: {ConfigurationError}", downloadError);
             return;
         }
 
@@ -107,7 +107,7 @@ public sealed class OnlineProfileService : IDisposable
     /// as failed (refresh_interrupted) with an ETag condition, so neither the list nor the detail ever
     /// shows a lost refresh as in progress.
     /// </summary>
-    public async Task<StoredProfile?> GetCurrentAsync(OnlineImportOwner owner, Guid profileId, CancellationToken cancellationToken)
+    public async Task<StoredProfile?> GetCurrentAsync(OnlineOwner owner, Guid profileId, CancellationToken cancellationToken)
     {
         EnsureConfigured();
         for (var attempt = 1; ; attempt++)
@@ -134,7 +134,7 @@ public sealed class OnlineProfileService : IDisposable
     }
 
     /// <summary>Reads all of the owner's profiles (oldest first), applying the watchdog to each.</summary>
-    public async Task<List<StoredProfile>> ListAsync(OnlineImportOwner owner, CancellationToken cancellationToken)
+    public async Task<List<StoredProfile>> ListAsync(OnlineOwner owner, CancellationToken cancellationToken)
     {
         EnsureConfigured();
         var ids = await Store.ListIdsAsync(owner, cancellationToken);
@@ -153,7 +153,7 @@ public sealed class OnlineProfileService : IDisposable
     /// record is read once more. The caller must dispose the result.
     /// </summary>
     public async Task<OnlineProfileOutputContent?> OpenCurrentOutputAsync(
-        OnlineImportOwner owner, Guid profileId, CancellationToken cancellationToken)
+        OnlineOwner owner, Guid profileId, CancellationToken cancellationToken)
     {
         EnsureConfigured();
         for (var attempt = 0; attempt < 2; attempt++)
