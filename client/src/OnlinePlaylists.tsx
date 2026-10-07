@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { OnlineAccount, OnlineAuth, OnlineCredentials } from './online-auth'
 import { fetchOnlineSession, OnlineApiError } from './online-api'
-import { readOnlineConfiguration } from './online-config'
+import type { OnlineConfigurationResult } from './online-config'
 import OnlineImport from './OnlineImport'
 import OnlineProfiles from './OnlineProfiles'
 
@@ -33,8 +33,13 @@ function authFailure(error: unknown): { message: string; reason: 'sign-in' | 're
   }
 }
 
-export default function OnlinePlaylists() {
-  const [configuration] = useState(() => readOnlineConfiguration(import.meta.env, window.location))
+interface OnlinePlaylistsProps {
+  configuration: OnlineConfigurationResult
+  method: 'import' | 'profiles' | null
+  onAccessVerified: (verified: boolean) => void
+}
+
+export default function OnlinePlaylists({ configuration, method, onAccessVerified }: OnlinePlaylistsProps) {
   const config = configuration.kind === 'configured' ? configuration.config : null
   const [auth, setAuth] = useState<OnlineAuth | null>(null)
   const [account, setAccount] = useState<OnlineAccount | null>(null)
@@ -43,6 +48,10 @@ export default function OnlinePlaylists() {
   const initialization = useRef<Promise<OnlineAuth> | null>(null)
   const operation = useRef(0)
   const request = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    onAccessVerified(state.kind === 'verified')
+  }, [state.kind, onAccessVerified])
 
   const cancelPendingAccess = useCallback(() => {
     request.current?.abort()
@@ -176,12 +185,10 @@ export default function OnlinePlaylists() {
   const signOutFailed = state.kind === 'error' && state.reason === 'sign-out'
 
   return (
-    <section className="card online-playlists" aria-labelledby="online-playlists-title">
+    <section className="card online-playlists" aria-labelledby="online-playlists-title" hidden={!method}>
       <div className="card-header">
         <h2 id="online-playlists-title">Online playlists</h2>
-        <span className="badge">Optional</span>
       </div>
-      <p>This separate, optional area lets an allowed Microsoft account import a provider playlist by URL on the server. Local files above always work without an account.</p>
       {configuration.kind === 'unconfigured' ? (
         <p>Online sign-in is not configured for this build. You can still process and download local playlists.</p>
       ) : configuration.kind === 'invalid' ? (
@@ -195,9 +202,6 @@ export default function OnlinePlaylists() {
             aria-atomic="true"
             className={state.kind === 'error' ? 'online-error' : 'online-status'}
           >{state.message}</p>
-          {state.kind === 'verified' && (
-            <p>URL import, saved profiles with one-click refresh and secret TV links for Smart IPTV are available.</p>
-          )}
           <div className="online-actions">
             {!auth && state.kind === 'error' ? (
               <button type="button" className="btn-small" onClick={() => {
@@ -225,22 +229,26 @@ export default function OnlinePlaylists() {
           </div>
           <p className="online-hint">Sign-in and sign-out use a popup, never a full-page redirect. Local files and browser favourites are not uploaded or cleared.</p>
           {auth && account && config && (
-            <OnlineImport
-              key={account.id}
-              config={config}
-              auth={auth}
-              active={state.kind === 'verified'}
-              onAccessError={handleImportAccessError}
-            />
+            <div hidden={method !== 'import'}>
+              <OnlineImport
+                key={account.id}
+                config={config}
+                auth={auth}
+                active={state.kind === 'verified'}
+                onAccessError={handleImportAccessError}
+              />
+            </div>
           )}
           {auth && account && config && (
-            <OnlineProfiles
-              key={`profiles:${account.id}`}
-              config={config}
-              auth={auth}
-              active={state.kind === 'verified'}
-              onAccessError={handleImportAccessError}
-            />
+            <div hidden={method !== 'profiles'}>
+              <OnlineProfiles
+                key={`profiles:${account.id}`}
+                config={config}
+                auth={auth}
+                active={state.kind === 'verified'}
+                onAccessError={handleImportAccessError}
+              />
+            </div>
           )}
         </>
       )}

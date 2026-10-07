@@ -2,9 +2,14 @@ import { useState, useRef } from 'react'
 import { extractCategories, filterByCategories } from './m3u-parser'
 import { forgetFavourites, loadFavourites, matchFavourites, saveFavourites } from './favourites'
 import OnlinePlaylists from './OnlinePlaylists'
+import { readOnlineConfiguration } from './online-config'
 import './App.css'
 
 function App() {
+  const [method, setMethod] = useState<'local' | 'import' | 'profiles' | null>(null)
+  const [configuration] = useState(() => readOnlineConfiguration(import.meta.env, window.location))
+  const [onlineVerified, setOnlineVerified] = useState(false)
+  const methodHeadingRef = useRef<HTMLHeadingElement>(null)
   const [categories, setCategories] = useState<string[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [favourites, setFavourites] = useState(loadFavourites)
@@ -154,6 +159,26 @@ function App() {
   }
 
   const hasFile = categories.length > 0
+  const methodName = method === 'local' ? 'Local file' : method === 'import' ? 'Import from URL' : 'Saved profiles'
+  const steps = method === 'local'
+    ? [
+        { label: 'Method', done: true, active: false },
+        { label: 'Upload', done: hasFile, active: !hasFile },
+        { label: 'Select', done: !!selected.size, active: hasFile && !selected.size },
+        { label: 'Download', done: false, active: !!selected.size },
+      ]
+    : method
+      ? [
+          { label: 'Method', done: true, active: false },
+          { label: 'Sign in', done: onlineVerified, active: !onlineVerified },
+          { label: method === 'import' ? 'Import' : 'Profiles', done: false, active: onlineVerified },
+        ]
+      : [{ label: 'Method', done: false, active: true }]
+
+  const changeMethod = (next: typeof method) => {
+    setMethod(next)
+    requestAnimationFrame(() => methodHeadingRef.current?.focus())
+  }
 
   return (
     <div className="app">
@@ -166,25 +191,57 @@ function App() {
 
       <main className="main">
         {/* Step indicators */}
-        <div className="steps">
-          <div className={`step ${!hasFile ? 'active' : 'done'}`}>
-            <span className="step-num">{hasFile ? '✓' : '1'}</span>
-            <span className="step-label">Upload</span>
-          </div>
-          <div className="step-line" />
-          <div className={`step ${hasFile && !selected.size ? 'active' : selected.size ? 'done' : ''}`}>
-            <span className="step-num">{selected.size ? '✓' : '2'}</span>
-            <span className="step-label">Select</span>
-          </div>
-          <div className="step-line" />
-          <div className={`step ${selected.size ? 'active' : ''}`}>
-            <span className="step-num">3</span>
-            <span className="step-label">Download</span>
-          </div>
+        <div className="steps" aria-label="Playlist steps">
+          {steps.map((step, index) => (
+            <div className="step-group" key={step.label}>
+              {index > 0 && <div className="step-line" aria-hidden="true" />}
+              <div className={`step ${step.done ? 'done' : step.active ? 'active' : ''}`} aria-current={step.active ? 'step' : undefined}>
+                <span className="step-num">{step.done ? '✓' : index + 1}</span>
+                <span className="step-label">{step.label}</span>
+              </div>
+            </div>
+          ))}
         </div>
 
+        <section className="card" aria-labelledby="method-title">
+          <div className="card-header">
+            <h2 id="method-title" ref={methodHeadingRef} tabIndex={-1}>{method ? methodName : 'Select a method'}</h2>
+            {method && <button type="button" className="btn-text" onClick={() => changeMethod(null)}>Change method</button>}
+          </div>
+          {!method && (
+            <>
+              <div className="mode-toggle">
+                <button type="button" className="mode-btn" onClick={() => changeMethod('local')}>
+                  <span className="mode-title">Local file</span>
+                  <span className="mode-desc">Use an M3U file from this device. No account is necessary.</span>
+                </button>
+                {configuration.kind === 'configured' && (
+                  <>
+                    <button type="button" className="mode-btn" onClick={() => changeMethod('import')}>
+                      <span className="mode-title">Import from URL</span>
+                      <span className="mode-desc">The server downloads the playlist. Microsoft sign-in is necessary.</span>
+                    </button>
+                    <button type="button" className="mode-btn" onClick={() => changeMethod('profiles')}>
+                      <span className="mode-title">Saved profiles</span>
+                      <span className="mode-desc">Refresh a playlist, download it, or get a TV link. Microsoft sign-in is necessary.</span>
+                    </button>
+                  </>
+                )}
+              </div>
+              {configuration.kind !== 'configured' && (
+                <p className="online-hint">
+                  {configuration.kind === 'invalid'
+                    ? 'Online methods are not available. The online configuration is not valid.'
+                    : 'Online methods are not available. Online sign-in is not configured.'}
+                  {' '}Use a local file.
+                </p>
+              )}
+            </>
+          )}
+        </section>
+
         {/* File upload */}
-        <section className="card">
+        <section className="card" hidden={method !== 'local'}>
           <div className="card-header">
             <h2>Upload M3U File</h2>
             {hasFile && (
@@ -248,7 +305,7 @@ function App() {
 
         {/* Category selection */}
         {hasFile && (
-          <section className="card">
+          <section className="card" hidden={method !== 'local'}>
             <div className="card-header">
               <h2>Select Categories</h2>
               <span className="badge">{selected.size} / {categories.length}</span>
@@ -357,7 +414,7 @@ function App() {
 
         {/* Download */}
         {hasFile && (
-          <section className="card download-card">
+          <section className="card download-card" hidden={method !== 'local'}>
             <button
               type="button"
               className="btn-primary"
@@ -372,7 +429,11 @@ function App() {
             )}
           </section>
         )}
-        <OnlinePlaylists />
+        <OnlinePlaylists
+          configuration={configuration}
+          method={method === 'import' || method === 'profiles' ? method : null}
+          onAccessVerified={setOnlineVerified}
+        />
       </main>
 
       <footer className="footer">

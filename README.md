@@ -24,9 +24,12 @@ The Azure UI is at
 [m3u-split.azurewebsites.net](https://m3u-split.azurewebsites.net/).
 GitHub Pages stays at
 [goncalvesj.github.io/m3u-split](https://goncalvesj.github.io/m3u-split/).
-The separate **Online playlists** section uses Microsoft sign-in in a popup,
-then verifies an API access token against `GET /api/online/session` on a
-separately configured Function App. Sign-in and sign-out do not reset the loaded
+Select **Local file**, **Import from URL**, or **Saved profiles** first.
+The page shows only the selected method. Use **Change method** to select a different method.
+Online methods are available only when the online configuration is valid.
+Both online methods use Microsoft sign-in in a popup, then check an API access
+token with `GET /api/online/session` on a separate Function App.
+Sign-in and sign-out do not reset the loaded
 local file, search, selection or favourites.
 
 An account is authorized only when the API validates its token and its configured
@@ -35,7 +38,7 @@ authorization. Without configuration, or when authentication/the backend fails,
 local processing remains available.
 
 **URL import is available to verified accounts.** Paste a provider playlist URL
-in **Online playlists**: the Function App downloads it into private storage with
+after you select **Import from URL** and sign in: the Function App downloads it into private storage with
 SSRF protection and lists its categories with channel counts. Pick categories
 (with search and the same favourites) and download a server-generated filtered
 `channels.m3u`; the full provider file never reaches the browser. Imports are
