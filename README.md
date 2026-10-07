@@ -65,6 +65,7 @@ settings, rate limits, playlist storage and roles, CORS, the hosting plan and
 cost guards, and the API workflow. The workflow builds the API for pushes and
 pull requests to the `azure` branch. It deploys a push to `azure` after a
 reviewer approves the deployment.
+Before the first push of `azure`, add the `azure-functions` environment, its `azure` branch rule and a required reviewer.
 The Azure UI uses App Service, but the API has no live deployment.
 Entra registrations and API CORS are future tasks.
 GitHub Pages keeps `master` as its source.

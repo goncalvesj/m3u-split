@@ -1433,7 +1433,8 @@ When you no longer use the old Static Web App, do these steps:
 2. Delete the Static Web App resource. This step also deletes its preview
    environments.
 3. Delete the repository secret
-   `AZURE_STATIC_WEB_APPS_API_TOKEN_PURPLE_FOREST_061720B03`.
+   `AZURE_STATIC_WEB_APPS_API_TOKEN_PURPLE_FOREST_061720B03`. Also delete the
+   other `AZURE_STATIC_WEB_APPS_API_TOKEN_*` secrets that no workflow uses.
 4. If the old app used blob storage, delete its `uploads` container. The
    legacy `Upload` function kept each playlist there, with the provider
    credentials.
@@ -1464,11 +1465,13 @@ The package includes the generated hidden `.azurefunctions` directory and
 for a workflow file on the default branch (`master`). This file is not on
 `master`, so use a push to `azure` to deploy.
 
-When the Azure resources are ready, add the **`azure-functions`** environment
-in GitHub. Set its deployment branch rule to the `azure` branch only. Add
+Before the first push of `azure`, add the **`azure-functions`** environment in
+GitHub. Set its deployment branch rule to the `azure` branch only. Add
 yourself as a required reviewer. Required reviewers are free for public
-repositories. Use a separate deployment identity, with a GitHub OIDC federated
-credential for this subject:
+repositories.
+
+When the Azure resources are ready, use a separate deployment identity, with a
+GitHub OIDC federated credential for this subject:
 
 `repo:goncalvesj/m3u-split:environment:azure-functions`
 
