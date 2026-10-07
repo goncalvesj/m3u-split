@@ -393,6 +393,10 @@ It includes `host.json`, `functions.metadata`, `worker.config.json`, and the hid
 It puts the publish files at the zip root.
 It deploys with Microsoft Entra authentication and removes its temporary files.
 
+The scripts accept `properties.status=RuntimeSuccessful` or `status=4` with `complete=true`.
+They stop if Azure returns a failed or unknown result.
+They use the default Azure CLI time limits.
+
 Both scripts check the subscription and app type before a build.
 The target must be a Linux app with HTTPS and disabled SCM basic authentication.
 They do not deploy the Bicep template or change identities, roles, or storage settings.

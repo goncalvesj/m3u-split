@@ -68,7 +68,8 @@ function Get-ExistingDeploymentApp {
         ResourceId = $app.id
         Url = "https://$($app.properties.defaultHostName)/"
         Config = $config.properties
-        Settings = $settings.properties
+        Settings = ($settings.properties |
+            Select-Object -Property WEBSITE_RUN_FROM_PACKAGE, SCM_DO_BUILD_DURING_DEPLOYMENT)
     }
 }
 
@@ -94,10 +95,19 @@ function Publish-DeploymentDirectory {
         '--name', $AppName,
         '--src-path', $ZipPath,
         '--type', 'zip',
-        '--restart', 'true',
-        '--timeout', '600000'
+        '--restart', 'true'
     )
-    if ($result.status -ne 4 -or -not $result.complete) {
+    $successful = $false
+    if ($result.PSObject.Properties['properties']) {
+        $properties = $result.properties
+        if ($properties -and $properties.PSObject.Properties['status']) {
+            $successful = $properties.status -is [string] -and $properties.status -ceq 'RuntimeSuccessful'
+        }
+    } elseif ($result.PSObject.Properties['status'] -and $result.PSObject.Properties['complete']) {
+        $successful = ($result.status -is [int] -or $result.status -is [long]) -and
+            $result.status -eq 4 -and $result.complete -is [bool] -and $result.complete
+    }
+    if (-not $successful) {
         throw 'Azure did not confirm a complete deployment. Examine the deployment before another attempt.'
     }
 }
