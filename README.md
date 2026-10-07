@@ -24,7 +24,9 @@ The Azure UI is at
 [m3u-split.azurewebsites.net](https://m3u-split.azurewebsites.net/).
 GitHub Pages stays at
 [goncalvesj.github.io/m3u-split](https://goncalvesj.github.io/m3u-split/).
-Select **Local file** or **Saved profiles** first.
+Saved profiles and TV links are off by default.
+Set `OnlineProfiles__Enabled=true` in the API and build the UI with `VITE_ONLINE_PROFILES_ENABLED=true` to turn them on.
+When they are on, select **Local file** or **Saved profiles** first.
 The page shows only the selected method. Use **Change method** to select a different method.
 Saved profiles are available only when the online configuration is valid.
 Saved profiles use Microsoft sign-in in a popup, then check an API access

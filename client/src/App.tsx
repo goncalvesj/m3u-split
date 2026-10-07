@@ -2,11 +2,12 @@ import { useState, useRef } from 'react'
 import { extractCategories, filterByCategories } from './m3u-parser'
 import { forgetFavourites, loadFavourites, matchFavourites, saveFavourites } from './favourites'
 import OnlinePlaylists from './OnlinePlaylists'
-import { readOnlineConfiguration } from './online-config'
+import { isOnlineProfilesEnabled, readOnlineConfiguration } from './online-config'
 import './App.css'
 
 function App() {
-  const [method, setMethod] = useState<'local' | 'profiles' | null>(null)
+  const onlineProfilesEnabled = isOnlineProfilesEnabled(import.meta.env)
+  const [method, setMethod] = useState<'local' | 'profiles' | null>(onlineProfilesEnabled ? null : 'local')
   const [configuration] = useState(() => readOnlineConfiguration(import.meta.env, window.location))
   const [onlineVerified, setOnlineVerified] = useState(false)
   const methodHeadingRef = useRef<HTMLHeadingElement>(null)
@@ -162,7 +163,7 @@ function App() {
   const methodName = method === 'local' ? 'Local file' : 'Saved profiles'
   const steps = method === 'local'
     ? [
-        { label: 'Method', done: true, active: false },
+        ...(onlineProfilesEnabled ? [{ label: 'Method', done: true, active: false }] : []),
         { label: 'Upload', done: hasFile, active: !hasFile },
         { label: 'Select', done: !!selected.size, active: hasFile && !selected.size },
         { label: 'Download', done: false, active: !!selected.size },
@@ -203,7 +204,7 @@ function App() {
           ))}
         </div>
 
-        <section className="card" aria-labelledby="method-title">
+        {onlineProfilesEnabled && <section className="card" aria-labelledby="method-title">
           <div className="card-header">
             <h2 id="method-title" ref={methodHeadingRef} tabIndex={-1}>{method ? methodName : 'Select a method'}</h2>
             {method && <button type="button" className="btn-text" onClick={() => changeMethod(null)}>Change method</button>}
@@ -232,7 +233,7 @@ function App() {
               )}
             </>
           )}
-        </section>
+        </section>}
 
         {/* File upload */}
         <section className="card" hidden={method !== 'local'}>
@@ -423,11 +424,11 @@ function App() {
             )}
           </section>
         )}
-        <OnlinePlaylists
+        {onlineProfilesEnabled && <OnlinePlaylists
           configuration={configuration}
           visible={method === 'profiles'}
           onAccessVerified={setOnlineVerified}
-        />
+        />}
       </main>
 
       <footer className="footer">

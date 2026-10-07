@@ -46,6 +46,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
+          VITE_ONLINE_PROFILES_ENABLED: ${{ vars.VITE_ONLINE_PROFILES_ENABLED }}
           VITE_ENTRA_TENANT_ID: ${{ vars.VITE_ENTRA_TENANT_ID }}
           VITE_ENTRA_SPA_CLIENT_ID: ${{ vars.VITE_ENTRA_SPA_CLIENT_ID }}
           VITE_ENTRA_API_SCOPE: ${{ vars.VITE_ENTRA_API_SCOPE }}

@@ -14,6 +14,7 @@
     "OnlineImport__IdleTimeoutSeconds": "60",
     "OnlineImport__UserAgent": "m3u-split/1.0",
     "OnlineProfiles__MaxProfilesPerUser": "10",
+    "OnlineProfiles__Enabled": "true",
     "OnlineRateLimits__ApiRequestsPerMinute": "300",
     "OnlineRateLimits__FeedRequestsPerMinute": "30",
     "OnlineRateLimits__FeedDownloadsPerHour": "20",

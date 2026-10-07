@@ -131,19 +131,19 @@ separate development Function App.
 ## Public Pages build settings
 
 All `VITE_*` values are visible in the deployed JavaScript. They are public
-configuration, **not secrets**. Set these four **repository Actions variables**
+configuration, **not secrets**. Set these five **repository Actions variables**
 for `.github/workflows/deploy-pages.yml`:
 
 | Variable | Required value when enabling online sign-in |
 | --- | --- |
+| `VITE_ONLINE_PROFILES_ENABLED` | `true` to turn on saved profiles and TV links |
 | `VITE_ENTRA_TENANT_ID` | The chosen tenant's Directory ID GUID |
 | `VITE_ENTRA_SPA_CLIENT_ID` | The SPA's Application (client) ID GUID |
 | `VITE_ENTRA_API_SCOPE` | `api://<API-APPLICATION-CLIENT-ID>/access_as_user` |
 | `VITE_ONLINE_API_BASE_URL` | `https://<YOUR-FUNCTION-APP-HOST>/api/` |
 
-Leave **all four unset** for a local-file-only build. Pages still builds and
-deploys, and the online section explains that sign-in is not configured.
-Partial or invalid configuration disables online sign-in with an explicit
+Leave `VITE_ONLINE_PROFILES_ENABLED` unset for a local-file-only build.
+When the flag is on, partial or invalid configuration disables online sign-in with an explicit
 message, not a permissive authentication fallback. Rebuild/redeploy Pages after
 changing a public variable.
 
@@ -240,15 +240,16 @@ Do not commit `node_modules` or `dist`.
 - `VITE_ENTRA_SPA_CLIENT_ID`: the production SPA Application (client) ID.
 - `VITE_ENTRA_API_SCOPE`: `api://<API-APPLICATION-CLIENT-ID>/access_as_user`.
 - `VITE_ONLINE_API_BASE_URL`: `https://<YOUR-FUNCTION-APP-HOST>/api/`.
+- `VITE_ONLINE_PROFILES_ENABLED`: `true`.
 
 Register the callback on the SPA platform, not the Web platform.
 Do not add a `localhost` callback to the production SPA.
 Configure the API and CORS before you supply the four public values.
-Pass all four public values to the UI script.
+Pass all four online values and `-EnableSavedProfiles` to the UI script.
 Do not pass only some of these values.
 
 ```powershell
-.\scripts\deploy-ui.ps1 @target `
+.\scripts\deploy-ui.ps1 @target -EnableSavedProfiles `
     -TenantId '<TENANT-ID>' `
     -SpaClientId '<SPA-APPLICATION-CLIENT-ID>' `
     -ApiScope 'api://<API-APPLICATION-CLIENT-ID>/access_as_user' `
@@ -407,6 +408,32 @@ Do not interpret these responses as a successful online setup.
 After Entra and CORS setup, set `VITE_ONLINE_API_BASE_URL` to `https://<FUNCTION-APP-HOST>/api/`.
 Supply the other three public values and rebuild the UI.
 
+## Turn saved profiles on or off
+
+Saved profiles and TV links are off by default.
+Only `true` turns each flag on. Letter case and spaces at the start or end do not matter.
+A missing, empty, or other value keeps the flag off.
+
+Set the API app setting `OnlineProfiles__Enabled` to `true` to turn the API feature on.
+The worker reads this as `OnlineProfiles:Enabled`.
+Set it to `false` or remove it to turn the API feature off.
+An app setting change restarts the API. No code deployment is necessary.
+
+Use `-EnableSavedProfiles` with `scripts\deploy-ui.ps1` to turn the UI feature on.
+Supply all four online values with this switch.
+Without the switch, the script builds a local-only UI and does not require the online values.
+For Pages, set the repository variable `VITE_ONLINE_PROFILES_ENABLED` to `true`.
+Set it to `false` or remove it to turn the Pages UI feature off.
+Build and deploy the UI again after a UI flag change.
+
+With the UI flag off, the page shows only Upload, Select, and Download.
+It does not show method controls or a saved profiles hint.
+It does not render saved profiles, start sign-in, or call the API.
+With the API flag off, all HTTP functions return 404 with no body.
+Queue and timer functions stop without running their work.
+Blocked requests do not use the rate limits.
+With both flags on, the current configuration checks and behavior stay the same.
+
 ## Standalone Function App settings
 
 Use an approved, separately provisioned **Azure Functions v4, .NET 10,
@@ -423,6 +450,7 @@ variables. Double underscores are the .NET configuration section separator:
 
 | Server setting | Value |
 | --- | --- |
+| `OnlineProfiles__Enabled` | `true` to turn on saved profiles and TV links. Default: off |
 | `FUNCTIONS_WORKER_RUNTIME` | `dotnet-isolated`. Not on Flex Consumption: see below the table |
 | `FUNCTIONS_EXTENSION_VERSION` | `~4`. Not on Flex Consumption: see below the table |
 | `OnlineAuth__TenantId` | The same tenant GUID as the SPA authority |
@@ -1290,8 +1318,10 @@ allowed account IDs in them. For `VITE_ENTRA_SPA_CLIENT_ID` and
 `OnlineAuth__SpaClientId`, use the client ID of the development SPA, not the
 production SPA. See [Development registrations](#development-registrations).
 In `.env.local`, use
-`VITE_ONLINE_API_BASE_URL=http://localhost:7071/api/`. Leave online values blank
-if you only want the local-file workflow.
+`VITE_ONLINE_API_BASE_URL=http://localhost:7071/api/`.
+Set `VITE_ONLINE_PROFILES_ENABLED=true` for local saved profiles.
+The API sample already sets `OnlineProfiles__Enabled` to `true`.
+Leave the UI flag blank if you only want the local-file workflow.
 
 Run the following in separate terminals:
 

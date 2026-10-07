@@ -8,6 +8,7 @@ export interface OnlineConfiguration {
 
 interface OnlineEnvironment {
   BASE_URL: string
+  VITE_ONLINE_PROFILES_ENABLED?: string
   VITE_ENTRA_TENANT_ID?: string
   VITE_ENTRA_SPA_CLIENT_ID?: string
   VITE_ENTRA_API_SCOPE?: string
@@ -23,10 +24,14 @@ export const isIdentityId = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value) &&
   value !== '00000000-0000-0000-0000-000000000000'
 
+export const isOnlineProfilesEnabled = (environment: OnlineEnvironment) =>
+  environment.VITE_ONLINE_PROFILES_ENABLED?.trim().toLowerCase() === 'true'
+
 export function readOnlineConfiguration(
   environment: OnlineEnvironment,
   location: Pick<Location, 'origin'>,
 ): OnlineConfigurationResult {
+  if (!isOnlineProfilesEnabled(environment)) return { kind: 'unconfigured' }
   const tenantId = environment.VITE_ENTRA_TENANT_ID?.trim() ?? ''
   const clientId = environment.VITE_ENTRA_SPA_CLIENT_ID?.trim() ?? ''
   const apiScope = environment.VITE_ENTRA_API_SCOPE?.trim() ?? ''

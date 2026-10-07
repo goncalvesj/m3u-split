@@ -10,6 +10,8 @@ var builder = FunctionsApplication.CreateBuilder(args);
 
 builder.ConfigureFunctionsWebApplication();
 
+builder.UseMiddleware<OnlineProfilesFlagMiddleware>();
+
 // Rate limits run before every HTTP function (see docs/online-setup.md). The middleware must come after
 // ConfigureFunctionsWebApplication, which provides the HTTP context and sends the 429 or 503 result.
 builder.Services.AddSingleton<OnlineRateLimiter>();

@@ -13,7 +13,8 @@ param(
     [string] $TenantId = '',
     [string] $SpaClientId = '',
     [string] $ApiScope = '',
-    [string] $OnlineApiBaseUrl = ''
+    [string] $OnlineApiBaseUrl = '',
+    [switch] $EnableSavedProfiles
 )
 
 $ErrorActionPreference = 'Stop'
@@ -27,10 +28,10 @@ $environment = @{
     VITE_ONLINE_API_BASE_URL = $OnlineApiBaseUrl.Trim()
 }
 $provided = @($environment.Values | Where-Object { $_ })
-if ($provided.Count -notin @(0, 4)) {
-    throw 'Supply all four online values, or leave all four empty.'
-}
-if ($provided.Count -eq 4) {
+if ($EnableSavedProfiles) {
+    if ($provided.Count -ne 4) {
+        throw 'Supply all four online values with -EnableSavedProfiles.'
+    }
     $tenant = [guid]::Empty
     $spa = [guid]::Empty
     if (-not [guid]::TryParse($environment.VITE_ENTRA_TENANT_ID, [ref] $tenant) -or $tenant -eq [guid]::Empty -or
@@ -52,6 +53,7 @@ if ($provided.Count -eq 4) {
         throw 'The API base must be an HTTPS URL without local hosts, credentials, query values, or fragments.'
     }
 }
+$environment.VITE_ONLINE_PROFILES_ENABLED = if ($EnableSavedProfiles) { 'true' } else { 'false' }
 
 $envFiles = @(Get-ChildItem -LiteralPath $client -Force -File |
     Where-Object { $_.Name -like '.env*' -and $_.Name -ne '.env.example' })
@@ -64,7 +66,7 @@ if ($target.Config.linuxFxVersion -notmatch '^NODE\|' -or
     $target.Config.appCommandLine -ne 'pm2 serve /home/site/wwwroot --no-daemon --spa') {
     throw 'The UI app must use Node and the documented PM2 startup command.'
 }
-if ($provided.Count -eq 4 -and $apiUrl.GetLeftPart([UriPartial]::Authority) -eq $target.Url.TrimEnd('/')) {
+if ($EnableSavedProfiles -and $apiUrl.GetLeftPart([UriPartial]::Authority) -eq $target.Url.TrimEnd('/')) {
     throw 'The API and UI must use separate origins.'
 }
 if (-not $PSCmdlet.ShouldProcess($target.ResourceId, 'Build and deploy the UI package')) {
